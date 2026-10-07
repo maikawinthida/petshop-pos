@@ -211,7 +211,7 @@ function openFinder(q) {
       <div class="frow"><span class="flabel">ประเภท</span><div class="fchips">${chipRow(TYPES, 'type')}</div></div>
       <div class="frow"><span class="flabel">สัตว์</span><div class="fchips">${chipRow(ANIMALS, 'animal')}</div></div>
     </div>
-    <div class="fbody"><table><thead><tr><th>สินค้า</th><th>หน่วย</th><th class="r">ราคา (แก้ได้)</th><th class="r">ขาย/ปี</th><th></th></tr></thead><tbody id="fr"></tbody></table><div class="empty" id="fempty" hidden>ไม่พบสินค้า ลองพิมพ์สั้นลง หรือเปลี่ยนตัวกรอง</div></div>
+    <div class="fbody"><table><thead><tr><th>สินค้า</th><th>หน่วย</th><th class="r">ราคา (แก้ได้)</th><th></th></tr></thead><tbody id="fr"></tbody></table><div class="empty" id="fempty" hidden>ไม่พบสินค้า ลองพิมพ์สั้นลง หรือเปลี่ยนตัวกรอง</div></div>
     <div class="ffoot"><span class="hint" id="fcount"></span><span class="hint">↑↓ เลือก · Enter ใส่บิลแล้วปิด · ปุ่ม "ใส่บิล" ใส่ต่อได้หลายตัว</span></div>`, 'finder');
   s.querySelector('#fb').value = F.brand;
   const draw = () => { filterF(); drawRows(); };
@@ -236,7 +236,7 @@ function drawRows(onlySel) {
     const b = BRANDS[p.brand];
     tr.innerHTML = `<td style="min-width:220px">${esc(p.name)}${p.big ? '<span class="tag">กระสอบ</span>' : ''}<div class="hint num">${esc(p.code)}${b ? ' · ' + esc(b[0]) : ''}</div></td>
       <td>${esc(p.unit)}</td><td class="r"><input class="price" value="${p.price}" inputmode="decimal" aria-label="ราคา ${esc(p.name)}"></td>
-      <td class="r num">${p.rank || '-'}</td><td style="white-space:nowrap"><button class="addb">ใส่บิล</button><button class="editb">แก้</button></td>`;
+      <td style="white-space:nowrap"><button class="addb">ใส่บิล</button><button class="editb">แก้</button></td>`;
     tr.onclick = e => { if (e.target.closest('input,button')) return; F.sel = i; drawRows(true); };
     tr.querySelector('.editb').onclick = () => editProduct(p.code);
     tr.querySelector('.addb').onclick = () => { addItem(p); F.added++; toast('ใส่ ' + p.name.slice(0, 24) + ' แล้ว'); updCount(); };
