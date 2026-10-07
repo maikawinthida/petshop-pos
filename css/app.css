@@ -322,3 +322,8 @@ tr.cancel td:last-child{text-decoration:none}
 .bsug.drop.qa{margin-top:4px;min-width:260px}
 #addForm .brandbox{display:flex}
 .scanmsg:not(:empty){font-size:15px;font-weight:600;color:var(--ink);padding:6px 2px}
+/* camera popup */
+.camov{position:fixed;inset:0;z-index:50;background:rgb(0 0 0 / .75);display:grid;place-items:center;padding:12px}
+.cambox{background:var(--panel);border-radius:14px;padding:12px;width:min(520px,100%);display:grid;gap:10px;max-height:100%;overflow:auto}
+.camhead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:17px}
+.camtip{margin:0;text-align:center;color:var(--muted);font-size:14px}

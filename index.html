@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=26">
+<link rel="stylesheet" href="css/app.css?v=27">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -164,7 +164,13 @@
     </div>
     <div class="bsug" id="pBrandSug" hidden></div>
     <div class="hint scanmsg" id="scanMsg"></div>
-    <div id="cam" class="cam" hidden></div>
+    <div class="camov" id="camOv" hidden>
+      <div class="cambox">
+        <div class="camhead"><b>ส่องบาร์โค้ดให้อยู่ในกรอบ</b><button class="closeb" id="camClose" aria-label="ปิดกล้อง"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>ปิด</button></div>
+        <div id="cam" class="cam" hidden></div>
+        <p class="camtip">สแกนติดแล้วจะปิดเอง</p>
+      </div>
+    </div>
     <div class="ptable" id="pTable">
       <table><thead><tr><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>หน่วย</th><th class="r">ราคา</th><th class="r">ต้นทุน</th><th class="r">สต็อก</th></tr></thead><tbody id="pRows"></tbody></table>
     </div>
@@ -246,6 +252,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=26"></script>
+<script type="module" src="js/app.js?v=27"></script>
 </body>
 </html>
