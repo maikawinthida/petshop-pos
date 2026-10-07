@@ -327,3 +327,6 @@ tr.cancel td:last-child{text-decoration:none}
 .cambox{background:var(--panel);border-radius:14px;padding:12px;width:min(520px,100%);display:grid;gap:10px;max-height:100%;overflow:auto}
 .camhead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:17px}
 .camtip{margin:0;text-align:center;color:var(--muted);font-size:14px}
+.pbottom{display:flex;gap:10px;margin-top:4px}
+.pbottom .pb{flex:0 0 auto;padding:14px 18px}
+.pbottom .pbig{flex:1;font-size:19px;padding:14px;background:#1f6b3a;border-color:#1f6b3a;color:#fff}

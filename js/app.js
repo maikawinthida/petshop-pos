@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=28';
-import { OWNER_EMAIL } from './config.js?v=28';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=28';
+import * as DB from './db.js?v=29';
+import { OWNER_EMAIL } from './config.js?v=29';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=29';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -528,7 +528,7 @@ function pfSetMode(mode) {
   const has = !!(PF.code && P.has(PF.code));
   $('pbAdd').disabled = mode === 'edit';
   $('pbEdit').disabled = mode !== 'view';
-  $('pbSave').disabled = !(mode === 'edit' || mode === 'new');
+  $('pbSave').disabled = !(mode === 'edit' || mode === 'new'); $('pfBottom').hidden = $('pbSave').disabled;
   $('pbDel').disabled = !(has && (mode === 'view' || mode === 'edit'));
   $('pbCancel').disabled = !(mode === 'edit' || mode === 'new');
   $('pbLabel').disabled = !($('pfCode').value.trim());
@@ -632,6 +632,7 @@ $('pfPrice').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preve
 $('pbAdd').onclick = () => pfClear(false); $('pfEmptyAdd').onclick = () => pfClear(false);
 $('pbEdit').onclick = () => { if (PF.mode !== 'view') return; pfSetMode('edit'); $('pfPrice').focus(); $('pfPrice').select(); };
 $('pbSave').onclick = pfSave; $('pbDel').onclick = pfDelete; $('pbCancel').onclick = pfCancel;
+$('pbSave2').onclick = pfSave; $('pbCancel2').onclick = pfCancel;
 $('pbLabel').onclick = () => { const code = $('pfCode').value.trim(); if (!code) return; openLabel(P.get(code) || { code, name: $('pfName').value.trim(), price: parseFloat($('pfPrice').value) || 0 }); };
 function prodOpen() { drawPList(); if (PF.mode === 'empty') $('pSearch').focus(); }
 function editProduct(code) { closeModal(); tab('prod'); pMode('info'); pfLoad(code); $('pbEdit').click(); }
@@ -1145,7 +1146,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '28';
+const APP_VERSION = '29';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

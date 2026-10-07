@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=28">
+<link rel="stylesheet" href="css/app.css?v=29">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -137,6 +137,7 @@
 
     <div class="pinfo" id="pfInfo" hidden></div>
     <div id="pfErr" class="notice" hidden style="margin:0"></div>
+    <div class="pbottom" id="pfBottom" hidden><button class="pb" id="pbCancel2">ยกเลิก</button><button class="primary pbig" id="pbSave2">บันทึก</button></div>
 
   </section>
 
@@ -252,6 +253,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=28"></script>
+<script type="module" src="js/app.js?v=29"></script>
 </body>
 </html>
