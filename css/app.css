@@ -228,3 +228,8 @@ tr.cancel td:last-child{text-decoration:none}
   .tabs button{padding:6px 12px;white-space:nowrap}
   .clock{display:none}
 }
+
+/* close button: white with red text so it stands out */
+.closeb{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#c62828;border:2px solid #c62828;border-radius:var(--r);padding:8px 14px;font-weight:700;font-size:16px;white-space:nowrap}
+.closeb:hover{background:#fdecea}
+.closeb kbd{color:#c62828;border-color:#f3b4ae;background:#fff}

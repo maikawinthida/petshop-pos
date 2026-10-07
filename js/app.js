@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=11';
-import { OWNER_EMAIL } from './config.js?v=11';
+import * as DB from './db.js?v=12';
+import { OWNER_EMAIL } from './config.js?v=12';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -214,7 +214,7 @@ function openFinder(q) {
       <div class="frow"><input type="search" id="fq" placeholder="พิมพ์ชื่อ ยี่ห้อ หรือบาร์โค้ด" autocomplete="off" value="${esc(F.q)}">
         <select id="fb" aria-label="ยี่ห้อ"><option value="">ทุกยี่ห้อ</option>${opts}</select>
         <select id="fs" aria-label="เรียงตาม"><option value="rank">เรียง: ขายดี</option><option value="name">เรียง: ชื่อ</option><option value="price">เรียง: ราคาน้อย→มาก</option><option value="pricedesc">เรียง: ราคามาก→น้อย</option></select>
-        <button class="ghost" id="fclose">ปิด <kbd>Esc</kbd></button></div>
+        <button class="closeb" id="fclose" aria-label="ปิด"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>ปิด <kbd>Esc</kbd></button></div>
       <div class="frow"><span class="flabel">ประเภท</span><div class="fchips">${chipRow(TYPES, 'type')}</div></div>
       <div class="frow"><span class="flabel">สัตว์</span><div class="fchips">${chipRow(ANIMALS, 'animal')}</div></div>
     </div>
