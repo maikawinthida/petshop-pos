@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=19';
-import { OWNER_EMAIL } from './config.js?v=19';
+import * as DB from './db.js?v=20';
+import { OWNER_EMAIL } from './config.js?v=20';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -656,13 +656,13 @@ async function camStart() {
     $('cam').hidden = false;
     SC.cam = new Html5Qrcode('cam', { formatsToSupport: [Fm.EAN_13, Fm.EAN_8, Fm.UPC_A, Fm.UPC_E, Fm.CODE_128, Fm.CODE_39, Fm.ITF], experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false });
     await SC.cam.start({ facingMode: 'environment' }, { fps: 12, qrbox: (w, h) => ({ width: Math.min(w * .85, 340), height: Math.min(h * .45, 160) }) }, code => onScanned(code), () => { });
-    SC.camOn = true; $('camBtn').textContent = 'ปิดกล้อง'; $('scanMsg').textContent = 'ส่องบาร์โค้ดให้อยู่ในกรอบ';
+    SC.camOn = true; $('camLbl').textContent = 'ปิดกล้อง'; $('scanMsg').textContent = 'ส่องบาร์โค้ดให้อยู่ในกรอบ';
   } catch (e) {
     console.error(e); $('cam').hidden = true;
     $('scanMsg').textContent = 'เปิดกล้องไม่ได้ ตรวจว่าอนุญาตให้เว็บนี้ใช้กล้องแล้ว (หรือพิมพ์บาร์โค้ดในช่องค้นหาแทน)';
   } finally { $('camBtn').disabled = false; }
 }
-async function camStop() { try { await SC.cam?.stop(); SC.cam?.clear(); } catch (e) { } SC.camOn = false; $('cam').hidden = true; $('camBtn').textContent = 'สแกนด้วยกล้อง'; }
+async function camStop() { try { await SC.cam?.stop(); SC.cam?.clear(); } catch (e) { } SC.camOn = false; $('cam').hidden = true; $('camLbl').textContent = 'สแกนด้วยกล้อง'; }
 $('camBtn').onclick = () => SC.camOn ? camStop() : camStart();
 function onScanned(code) {
   code = String(code).trim(); const now = Date.now();
@@ -1057,7 +1057,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '19';
+const APP_VERSION = '20';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
