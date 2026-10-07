@@ -1,5 +1,5 @@
-import * as DB from './db.js';
-import { OWNER_EMAIL } from './config.js';
+import * as DB from './db.js?v=7';
+import { OWNER_EMAIL } from './config.js?v=7';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -719,6 +719,7 @@ function noAccess() {
   unsubs.forEach(u => u()); unsubs = [];
   gate(`บัญชี ${S.user?.email} ยังไม่ได้รับสิทธิ์ใช้ระบบ ให้เจ้าของร้านเพิ่มอีเมลนี้ในหน้าตั้งค่า`, { logout: true });
 }
+window.__appStarted = true;
 DB.watchAuth(async user => {
   S.user = user; appShown = false; chunksSeen = new Set();
   if (!user) { unsubs.forEach(u => u()); unsubs = []; gate('เข้าสู่ระบบด้วยบัญชี Google ของร้าน', { login: true }); return; }
