@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Owner of the shop (must match OWNER_EMAIL in js/config.js)
+    function isOwner() {
+      return request.auth != null && request.auth.token.email == 'kruythongkawinthida@gmail.com';
+    }
+    // Owner, or a Gmail listed by the owner in meta/staff
+    function isStaff() {
+      return isOwner() || (request.auth != null && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/meta/staff)
+        && request.auth.token.email.lower() in get(/databases/$(database)/documents/meta/staff).data.emails);
+    }
+    match /meta/{name} {
+      allow read: if isStaff();
+      allow write: if (name == 'staff' && isOwner()) || (name != 'staff' && isStaff());
+    }
+    match /catalog/{chunk} { allow read, write: if isStaff(); }
+    match /sales/{id} { allow read, create, update: if isStaff(); }
+    match /priceLog/{id} { allow read, create: if isStaff(); }
+  }
+}
