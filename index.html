@@ -38,7 +38,7 @@
     <button id="tabBills" role="tab" aria-selected="false">บิลวันนี้</button>
     <button id="tabReport" role="tab" aria-selected="false">รายงาน</button>
   </div>
-  <div class="sellers"><span class="lbl">คนขาย</span><span id="sellerChips"></span></div>
+  <div class="sellers"><span id="sellerChips" hidden></span></div>
   <span class="clock num" id="clock"></span>
   <span class="sync" id="sync" title="สถานะการซิงก์">●</span>
 </header>
@@ -153,12 +153,11 @@
     <div class="seg big" id="rMode">
       <button data-m="today" aria-pressed="false">วันนี้</button><button data-m="month" aria-pressed="true">รายเดือน</button><button data-m="year" aria-pressed="false">รายปี</button><button data-m="range" aria-pressed="false">ช่วงวัน</button>
     </div>
-    <input type="month" id="rMonth" aria-label="เดือน">
+    <span id="rMonthBox"><select id="rMon" aria-label="เดือน"></select> <select id="rMonYear" aria-label="ปีของเดือน"></select></span>
     <select id="rYear" aria-label="ปี" hidden></select>
     <span id="rRange" hidden><input type="date" id="rFrom" aria-label="ตั้งแต่"> ถึง <input type="date" id="rTo" aria-label="ถึง"></span>
     <select id="rMethod" aria-label="วิธีจ่าย"><option value="">ทุกวิธีจ่าย</option><option value="cash">เงินสด</option><option value="transfer">โอน</option><option value="half">คนละครึ่ง</option><option value="other">อื่นๆ (โปรแกรมเดิม)</option></select>
-    <select id="rSeller" aria-label="คนขาย"><option value="">ทุกคนขาย</option></select>
-    <button class="ghost" id="rExport">ส่งออก Excel</button>
+        <button class="ghost" id="rExport">ส่งออก Excel</button>
   </section>
   <div class="kpis" id="rKpis"></div>
   <section class="card rbox">
@@ -167,7 +166,7 @@
   </section>
   <div class="rgrid">
     <section class="card rbox"><div class="rhead"><strong>สินค้าขายดี</strong><span class="hint" id="rTopNote"></span></div><div class="cartwrap"><table><thead><tr><th>สินค้า</th><th class="r">ชิ้น</th><th class="r">ยอดขาย</th><th class="r">กำไร</th></tr></thead><tbody id="rTop"></tbody></table></div></section>
-    <section class="card rbox"><div class="rhead"><strong>รายการบิล</strong><span class="hint" id="rBillNote"></span></div><div class="cartwrap rbills"><table><thead><tr><th>วันที่</th><th>เลขบิล</th><th>คนขาย</th><th>จ่าย</th><th class="r">ยอด</th><th></th></tr></thead><tbody id="rBills"></tbody></table></div></section>
+    <section class="card rbox"><div class="rhead"><strong>รายการบิล</strong><span class="hint" id="rBillNote"></span></div><div class="cartwrap rbills"><table><thead><tr><th>วันที่</th><th>เลขบิล</th><th>จ่าย</th><th class="r">ยอด</th><th></th></tr></thead><tbody id="rBills"></tbody></table></div></section>
   </div>
   <details class="card rbox" id="rLowBox">
     <summary><strong>ควรเช็คราคา</strong> <span class="hint" id="rLowCount"></span></summary>
@@ -179,7 +178,7 @@
   <div class="kpis" id="kpis"></div>
   <section class="card cartwrap">
     <table>
-      <thead><tr><th>เวลา</th><th>เลขบิล</th><th>คนขาย</th><th>วิธีจ่าย</th><th class="r">ชิ้น</th><th class="r">ยอด</th><th></th></tr></thead>
+      <thead><tr><th>เวลา</th><th>เลขบิล</th><th>วิธีจ่าย</th><th class="r">ชิ้น</th><th class="r">ยอด</th><th></th></tr></thead>
       <tbody id="billRows"></tbody>
     </table>
     <div class="empty" id="emptyBills">ยังไม่มีบิลวันนี้</div>
@@ -193,7 +192,6 @@
     <strong>ตั้งค่า</strong>
     <label>ชื่อร้าน (แสดงบนใบเสร็จ)<input id="setShop"></label>
     <label>เบอร์พร้อมเพย์ หรือเลขบัตรประชาชน (สร้าง QR รับโอน)<input id="setPP" inputmode="numeric" placeholder="เช่น 0812345678"></label>
-    <label>รายชื่อคนขาย (คั่นด้วยจุลภาค)<input id="setSellers"></label>
     <label>ร้านที่รับของประจำ (คั่นด้วยจุลภาค โชว์เป็นปุ่มในหน้าสินค้า)<input id="setSups"></label>
     <label class="check"><input type="checkbox" id="setAutoPrint"> พิมพ์ใบเสร็จอัตโนมัติหลังรับเงิน (ตั้งแยกแต่ละเครื่อง เปิดเฉพาะคอมที่ต่อเครื่องพิมพ์)</label>
   </section>

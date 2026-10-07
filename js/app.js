@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS = { shop: 'ร้านเพ็ทช็อป', pp: '',
 const S = {
   user: null, isOwner: false,
   settings: { ...DEFAULT_SETTINGS, ...store.get('settingsCache', {}) },
-  seller: store.get('seller', 'พ่อ'),
+  seller: '',
   autoPrint: store.get('autoPrint', false),
   bills: [], priceLog: [], staff: [],
   recent: store.get('recent', []),
@@ -138,15 +138,7 @@ function render() {
   document.querySelectorAll('.pay').forEach(b => b.disabled = !tab.cart.length);
   saveTabs();
 }
-function renderSellers() {
-  const box = $('sellerChips'); box.innerHTML = '';
-  if (!S.settings.sellers.includes(S.seller)) S.seller = S.settings.sellers[0] || '';
-  for (const n of S.settings.sellers) {
-    const b = document.createElement('button'); b.className = 'chip'; b.textContent = n; b.setAttribute('aria-pressed', n === S.seller);
-    b.onclick = () => { S.seller = n; store.set('seller', n); renderSellers(); focusQ(); }; box.appendChild(b);
-  }
-  $('shopTitle').textContent = S.settings.shop;
-}
+function renderSellers() { $('shopTitle').textContent = S.settings.shop; }
 
 /* ---------- held bills ---------- */
 function holdBill() { S.tabs.push(newTab()); S.cur = S.tabs.length - 1; $('notice').innerHTML = ''; render(); focusQ(); toast('เปิดบิลใหม่แล้ว บิลเดิมยังอยู่ด้านบน'); }
@@ -323,7 +315,7 @@ function finish(method, recv) {
 }
 function receiptHTML(b) {
   return `<div class="receipt"><div class="c"><b>${esc(S.settings.shop)}</b><br>ใบเสร็จรับเงิน</div><hr>
-  <div class="l"><span>${esc(b.id)}</span><span>${b.date.split('-').reverse().join('/')} ${b.time}</span></div><div>คนขาย: ${esc(b.seller)}</div><hr>
+  <div class="l"><span>${esc(b.id)}</span><span>${b.date.split('-').reverse().join('/')} ${b.time}</span></div><hr>
   ${b.items.map(i => `<div>${esc(i.name)}</div><div class="l"><span>&nbsp;&nbsp;${i.qty} x ${fmt0(i.price)}</span><span>${fmt(i.qty * i.price)}</span></div>`).join('')}<hr>
   <div class="l"><span>รวม ${b.count} ชิ้น</span><span>${fmt(b.sub)}</span></div>
   ${b.disc ? `<div class="l"><span>ส่วนลด</span><span>-${fmt(b.disc)}</span></div>` : ''}
@@ -357,14 +349,13 @@ function printReceipt(b) {
 /* ---------- bills tab ---------- */
 function renderBills() {
   const list = S.bills.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)), live = list.filter(b => !b.cancelled);
-  const sum = f => live.filter(f).reduce((s, b) => s + b.net, 0); const by = {}; live.forEach(b => by[b.seller] = (by[b.seller] || 0) + b.net);
+  const sum = f => live.filter(f).reduce((s, b) => s + b.net, 0);
   $('kpis').innerHTML = [['ยอดขายวันนี้', sum(() => true)], ['เงินสดเข้าลิ้นชัก', sum(b => b.method === 'cash')], ['โอน', sum(b => b.method === 'transfer')], ['คนละครึ่ง', sum(b => b.method === 'half')], ['จำนวนบิล', live.length, true]]
-    .map(([k, v, i]) => `<div class="card kpi"><div class="k">${k}</div><div class="v">${i ? v : fmt0(v)}</div></div>`).join('')
-    + Object.entries(by).map(([n, v]) => `<div class="card kpi"><div class="k">ขายโดย ${esc(n)}</div><div class="v">${fmt0(v)}</div></div>`).join('');
+    .map(([k, v, i]) => `<div class="card kpi"><div class="k">${k}</div><div class="v">${i ? v : fmt0(v)}</div></div>`).join('');
   const tb = $('billRows'); tb.innerHTML = '';
   list.forEach(b => {
     const tr = document.createElement('tr'); if (b.cancelled) tr.className = 'cancel';
-    tr.innerHTML = `<td class="num">${b.time}${b.pending ? ' <span class="hint">รอซิงก์</span>' : ''}</td><td class="num">${esc(b.id)}</td><td>${esc(b.seller)}</td><td><span class="pill">${METHOD[b.method]}</span></td><td class="r num">${b.count}</td><td class="r num">${fmt(b.net)}</td>
+    tr.innerHTML = `<td class="num">${b.time}${b.pending ? ' <span class="hint">รอซิงก์</span>' : ''}</td><td class="num">${esc(b.id)}</td><td><span class="pill">${METHOD[b.method]}</span></td><td class="r num">${b.count}</td><td class="r num">${fmt(b.net)}</td>
       <td style="white-space:nowrap"><button class="ghost" data-a="v">ดู</button> ${b.cancelled ? '<span class="pill x">ยกเลิกแล้ว</span>' : '<button class="ghost bad" data-a="x">ยกเลิก</button>'}</td>`;
     tr.querySelector('[data-a="v"]').onclick = () => showReceipt(b, false);
     const x = tr.querySelector('[data-a="x"]'); if (x) x.onclick = () => confirmBox(`ยกเลิกบิล ${b.id} ยอด ${fmt(b.net)} บาท?`, 'ยกเลิกบิล', () => { DB.cancelSale(b).catch(fail); toast('ยกเลิกบิลแล้ว สต็อกคืนให้แล้ว'); });
@@ -381,22 +372,21 @@ function renderBills() {
 }
 function tab(w) {
   for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
-  if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else if (w === 'report') { fillSellerFilter(); loadReport(); } else focusQ();
+  if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else if (w === 'report') loadReport(); else focusQ();
 }
 $('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report');
 
 /* ---------- settings ---------- */
 function fillSettings() {
-  $('setShop').value = S.settings.shop; $('setPP').value = S.settings.pp || ''; $('setSellers').value = S.settings.sellers.join(', '); $('setSups').value = (S.settings.suppliers || []).join(', ');
+  $('setShop').value = S.settings.shop; $('setPP').value = S.settings.pp || ''; $('setSups').value = (S.settings.suppliers || []).join(', ');
   $('setAutoPrint').checked = !!S.autoPrint; $('setStaff').value = S.staff.join(', ');
 }
 const splitList = v => v.split(',').map(s => s.trim()).filter(Boolean);
 function saveSet() {
-  const s = { shop: $('setShop').value.trim() || 'ร้านเพ็ทช็อป', pp: $('setPP').value.trim(), sellers: splitList($('setSellers').value), suppliers: splitList($('setSups').value) };
-  if (!s.sellers.length) s.sellers = ['พ่อ'];
+  const s = { ...S.settings, shop: $('setShop').value.trim() || 'ร้านเพ็ทช็อป', pp: $('setPP').value.trim(), suppliers: splitList($('setSups').value) };
   S.settings = s; store.set('settingsCache', s); DB.saveMeta('settings', s).catch(fail); renderSellers();
 }
-['setShop', 'setPP', 'setSellers', 'setSups'].forEach(id => $(id).onchange = () => { saveSet(); pfDrawChips(); toast('บันทึกแล้ว'); });
+['setShop', 'setPP', 'setSups'].forEach(id => $(id).onchange = () => { saveSet(); pfDrawChips(); toast('บันทึกแล้ว'); });
 $('setAutoPrint').onchange = e => { setAutoPrint(e.target.checked); toast(S.autoPrint ? 'เครื่องนี้จะพิมพ์ใบเสร็จอัตโนมัติ' : 'ปิดพิมพ์อัตโนมัติที่เครื่องนี้แล้ว'); };
 $('setStaff').onchange = e => { const emails = splitList(e.target.value).map(x => x.toLowerCase()); DB.saveMeta('staff', { emails }).then(() => toast('บันทึกรายชื่อแล้ว')).catch(fail); };
 $('logoutBtn').onclick = () => confirmBox('ออกจากระบบเครื่องนี้?', 'ออกจากระบบ', () => DB.logout());
@@ -526,18 +516,21 @@ const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.'
 const be = y => +y + 543;
 function rInit() {
   const now = new Date();
-  $('rMonth').value = now.getFullYear() + '-' + pad(now.getMonth() + 1);
-  $('rYear').innerHTML = Array.from({ length: now.getFullYear() - 2022 }, (_, i) => now.getFullYear() - i).map(y => `<option value="${y}">ปี ${be(y)}</option>`).join('');
+  const years = Array.from({ length: now.getFullYear() - 2022 }, (_, i) => now.getFullYear() - i);
+  $('rYear').innerHTML = years.map(y => `<option value="${y}">ปี ${be(y)}</option>`).join('');
+  $('rMonYear').innerHTML = years.map(y => `<option value="${y}">${be(y)}</option>`).join('');
+  $('rMon').innerHTML = TH_MON.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+  $('rMon').value = now.getMonth() + 1; $('rMonYear').value = now.getFullYear();
   $('rTo').value = today(); const f = new Date(now); f.setDate(f.getDate() - 6); $('rFrom').value = ymd(f);
   $('rMode').querySelectorAll('button').forEach(b => b.onclick = () => { R.mode = b.dataset.m; $('rMode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); rControls(); loadReport(); });
-  ['rMonth', 'rYear', 'rFrom', 'rTo'].forEach(id => $(id).onchange = loadReport);
-  ['rMethod', 'rSeller'].forEach(id => $(id).onchange = drawReport);
+  ['rMon', 'rMonYear', 'rYear', 'rFrom', 'rTo'].forEach(id => $(id).onchange = loadReport);
+  $('rMethod').onchange = drawReport;
   $('rExport').onclick = exportReport; rControls();
 }
-function rControls() { $('rMonth').hidden = R.mode !== 'month'; $('rYear').hidden = R.mode !== 'year'; $('rRange').hidden = R.mode !== 'range'; }
+function rControls() { $('rMonthBox').hidden = R.mode !== 'month'; $('rYear').hidden = R.mode !== 'year'; $('rRange').hidden = R.mode !== 'range'; }
 function rPeriod() {
   if (R.mode === 'today') { const d = today(); return { from: d, to: d, title: 'วันนี้' }; }
-  if (R.mode === 'month') { const [y, m] = $('rMonth').value.split('-').map(Number); const last = new Date(y, m, 0).getDate(); return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(last)}`, title: `${TH_MON[m - 1]} ${be(y)}` }; }
+  if (R.mode === 'month') { const y = +$('rMonYear').value, m = +$('rMon').value; const last = new Date(y, m, 0).getDate(); return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(last)}`, title: `${TH_MON[m - 1]} ${be(y)}` }; }
   if (R.mode === 'year') { const y = +$('rYear').value; return { from: `${y}-01-01`, to: `${y}-12-31`, title: `ปี ${be(y)}` }; }
   let a = $('rFrom').value, b = $('rTo').value; if (a > b) [a, b] = [b, a];
   return { from: a, to: b, title: `${a.split('-').reverse().join('/')} – ${b.split('-').reverse().join('/')}` };
@@ -570,7 +563,7 @@ function sumDays(days, method, seller) {
 }
 function drawReport() {
   if (!R.data) return; const { per, days, prev, span } = R.data;
-  const method = $('rMethod').value, seller = $('rSeller').value;
+  const method = $('rMethod').value, seller = '';
   let t = sumDays(days, method, seller);
   // with a seller or method chosen and bills loaded, count from the bills themselves (gives cost too)
   const fb = R.bills ? R.bills.filter(b => !b.cancelled && (!method || b.method === method) && (!seller || b.seller === seller)) : null;
@@ -601,7 +594,8 @@ function drawChart(per, days, prev, method, seller, span) {
   const val = {}, pval = {}; const k = s => byMonth ? s.slice(0, 7) : s;
   for (const d of days) val[k(d.date)] = (val[k(d.date)] || 0) + dayVal(d, method, seller).net;
   for (const d of prev) { const key = k((+d.date.slice(0, 4) + 1) + d.date.slice(4)); pval[key] = (pval[key] || 0) + dayVal(d, method, seller).net; }
-  const max = Math.max(1, ...buckets.map(b => Math.max(val[b.key] || 0, pval[b.key] || 0)));
+  const max = Math.max(...buckets.map(b => Math.max(val[b.key] || 0, pval[b.key] || 0)), 0);
+  if (!max) { $('rChartTitle').textContent = 'ยอดขาย'; $('rChart').innerHTML = '<div class="empty">ยังไม่มียอดขายในช่วงนี้ ถ้าเพิ่งเริ่มใช้ระบบ นำเข้ายอดย้อนหลังได้ที่แท็บบิลวันนี้</div>'; return; }
   const W = Math.max(560, buckets.length * 26), H = 200, padL = 52, padB = 22, bw = (W - padL - 8) / buckets.length;
   const y = v => H - padB - (v / max) * (H - padB - 10);
   const ticks = [0, max / 2, max].map(v => `<line x1="${padL}" x2="${W - 4}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${v >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v)}</text>`).join('');
@@ -625,12 +619,12 @@ function drawTop(fb, span) {
 function drawBillList(fb, span) {
   const tb = $('rBills'); tb.innerHTML = '';
   if (!R.bills) { $('rBillNote').textContent = 'เลือกช่วงไม่เกิน 62 วันเพื่อดูรายบิล'; return; }
-  const method = $('rMethod').value, seller = $('rSeller').value;
+  const method = $('rMethod').value, seller = '';
   const list = R.bills.filter(b => (!method || b.method === method) && (!seller || b.seller === seller)).sort((a, b) => (b.ts || 0) - (a.ts || 0));
   $('rBillNote').textContent = `${list.length.toLocaleString()} บิล (บิลจากโปรแกรมเดิมดูได้ที่โปรแกรมเดิม)`;
   for (const b of list.slice(0, 400)) {
     const tr = document.createElement('tr'); if (b.cancelled) tr.className = 'cancel';
-    tr.innerHTML = `<td class="num">${b.date.slice(8)}/${b.date.slice(5, 7)} ${b.time}</td><td class="num">${esc(b.id)}</td><td>${esc(b.seller)}</td><td><span class="pill">${METHOD[b.method] || b.method}</span></td><td class="r num">${fmt(b.net)}</td><td><button class="ghost">ดู</button></td>`;
+    tr.innerHTML = `<td class="num">${b.date.slice(8)}/${b.date.slice(5, 7)} ${b.time}</td><td class="num">${esc(b.id)}</td><td><span class="pill">${METHOD[b.method] || b.method}</span></td><td class="r num">${fmt(b.net)}</td><td><button class="ghost">ดู</button></td>`;
     tr.querySelector('button').onclick = () => showReceipt(b, false); tb.appendChild(tr);
   }
 }
@@ -661,7 +655,7 @@ function exportReport() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `รายงานยอดขาย_${per.from}_${per.to}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
-function fillSellerFilter() { const v = $('rSeller').value; $('rSeller').innerHTML = '<option value="">ทุกคนขาย</option>' + S.settings.sellers.map(n => `<option>${esc(n)}</option>`).join(''); $('rSeller').value = v; }
+
 rInit();
 
 /* ---------- copy an old bill into a new one ---------- */
