@@ -178,7 +178,7 @@ tr.cancel td:last-child{text-decoration:none}
 .gatebox h1{margin:0;font-size:24px}
 .settings .check{display:flex;gap:8px;align-items:center;color:var(--ink)}
 .settings .check input{width:20px;height:20px}
-.printframe{position:fixed;width:0;height:0;border:0;right:0;bottom:0}
+.printframe{position:fixed;left:-10000px;top:0;width:240px;height:600px;border:0}
 /* reports */
 #viewReport{display:grid;gap:12px}
 .rctl{padding:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}

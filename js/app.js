@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=14';
-import { OWNER_EMAIL } from './config.js?v=14';
+import * as DB from './db.js?v=15';
+import { OWNER_EMAIL } from './config.js?v=15';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -357,7 +357,6 @@ function printReceipt(b) {
   const fontUrl = new URL('fonts/GoogleSans.woff2', location.href).href;
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     @font-face{font-family:"Google Sans";src:url(${fontUrl}) format("woff2");font-weight:400 700}
-    @page{size:58mm auto;margin:0}
     html,body{margin:0;padding:0;background:#fff;color:#000}
     .receipt{width:48mm;margin:0 auto;padding:2mm 0 6mm;font-family:"Google Sans",sans-serif;font-size:11.5px;line-height:1.35;font-weight:500}
     .c{text-align:center}.l{display:flex;justify-content:space-between;gap:4px}.l span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -365,7 +364,12 @@ function printReceipt(b) {
   </style></head><body>${receiptHTML(b)}</body></html>`;
   const f = document.createElement('iframe'); f.className = 'printframe'; document.body.appendChild(f);
   const d = f.contentDocument; d.open(); d.write(html); d.close();
-  const go = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('สั่งพิมพ์ไม่ได้'); } setTimeout(() => f.remove(), 60000); };
+  const go = () => {
+    // page exactly as long as the receipt (an "auto" length makes Chrome show a blank, endless strip)
+    const mm = Math.ceil(d.querySelector('.receipt').getBoundingClientRect().height * 25.4 / 96) + 8;
+    const st = d.createElement('style'); st.textContent = `@page{size:58mm ${mm}mm;margin:0}`; d.head.appendChild(st);
+    try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('สั่งพิมพ์ไม่ได้'); } setTimeout(() => f.remove(), 60000);
+  };
   (d.fonts?.ready || Promise.resolve()).then(() => setTimeout(go, 50));
 }
 
