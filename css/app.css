@@ -319,3 +319,5 @@ tr.cancel td:last-child{text-decoration:none}
 .brandbox{position:relative}
 .bsug.drop{position:absolute;left:0;right:0;top:100%;z-index:6;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 20px rgb(0 0 0 / .15);padding:8px;margin-top:-18px}
 #fbs{padding:0 2px}
+.bsug.drop.qa{margin-top:4px;min-width:260px}
+#addForm .brandbox{display:flex}
