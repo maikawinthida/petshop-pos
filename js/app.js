@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=27';
-import { OWNER_EMAIL } from './config.js?v=27';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=27';
+import * as DB from './db.js?v=28';
+import { OWNER_EMAIL } from './config.js?v=28';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=28';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -511,8 +511,8 @@ function pfName() {
   const [, en, , al] = bi >= 0 ? BRANDS[bi] : [];
   $('pfBrandMsg').textContent = isNew ? 'ยี่ห้อใหม่ จะเพิ่มให้ตอนบันทึก' : bi >= 0 ? [en && 'อังกฤษ: ' + en, al?.length && 'ค้นได้ด้วย: ' + al.slice(0, 4).join(', ')].filter(Boolean).join(' · ') : ''; $('pfBrandEn').hidden = !isNew;
   const size = $('pfSize').value.trim();
-  if (PF.nameAuto && PF.mode === 'new') $('pfName').value = [b, $('pfVariant').value.trim(), size ? size + $('pfSizeU').value : ''].filter(Boolean).join(' ');
-  $('pfAuto').hidden = PF.nameAuto || PF.mode !== 'new';
+  if (PF.nameAuto && (PF.mode === 'new' || PF.mode === 'edit')) $('pfName').value = [b, $('pfVariant').value.trim(), size ? size + $('pfSizeU').value : ''].filter(Boolean).join(' ');
+  $('pfAuto').hidden = PF.nameAuto || !(PF.mode === 'new' || PF.mode === 'edit');
   const pr = parseFloat($('pfPrice').value), co = parseFloat($('pfCost').value);
   $('pfMargin').textContent = pr > 0 && co > 0 ? `กำไรต่อหน่วย ${fmt0(pr - co)} บาท (${Math.round((pr - co) / pr * 100)}%)` : '';
 }
@@ -536,7 +536,7 @@ function pfSetMode(mode) {
   $('pfTitle').textContent = { empty: 'ข้อมูลสินค้า', view: 'ข้อมูลสินค้า', edit: 'แก้ไขสินค้า', new: 'เพิ่มสินค้าใหม่' }[mode];
   $('pfState').textContent = { empty: 'เลือกสินค้าจากตาราง หรือกด เพิ่ม', view: 'กด แก้ไข เพื่อเปลี่ยนข้อมูล', edit: 'แก้แล้วกด บันทึก', new: 'ยิงบาร์โค้ด แล้วกรอกข้อมูล' }[mode];
   $('pfState').className = 'pstate ' + mode;
-  $('pfAuto').hidden = PF.nameAuto || mode !== 'new';
+  $('pfAuto').hidden = PF.nameAuto || !(mode === 'new' || mode === 'edit');
   if (mode !== 'view') $('pfInfo').hidden = true;
 }
 function pfFill(p) {
@@ -565,6 +565,7 @@ function pfCheckCode() {
 }
 function pfSave() {
   if (PF.mode === 'new') pfCheckCode(); if (PF.mode === 'view') return;
+  if (!$('pfName').value.trim()) { PF.nameAuto = true; pfName(); }
   const code = $('pfCode').value.trim(), name = $('pfName').value.trim(), price = parseFloat($('pfPrice').value);
   const errs = []; if (!code) errs.push('ยังไม่มีบาร์โค้ด (ยิง หรือกด "เพิ่มรหัสสินค้า")'); if (!name) errs.push('ยังไม่มีชื่อสินค้า'); if (!(price >= 0)) errs.push('ยังไม่ได้ใส่ราคาขาย');
   if (errs.length) { $('pfErr').textContent = errs.join(' · '); $('pfErr').hidden = false; return; }
@@ -625,7 +626,7 @@ $('pfRand').onclick = () => { $('pfCode').value = randomCode(); $('pfGenBox').hi
 $('pfOwn').onclick = () => { $('pfGenBox').hidden = true; $('pfCode').value = ''; $('pfCode').placeholder = 'พิมพ์รหัสที่ต้องการ แล้วกด Enter'; $('pfCode').focus(); };
 ['pfBrand', 'pfVariant', 'pfSize', 'pfPrice', 'pfCost'].forEach(id => $(id).addEventListener('input', pfName));
 $('pfSizeU').addEventListener('change', pfName);
-$('pfName').addEventListener('input', () => { PF.nameAuto = false; $('pfAuto').hidden = PF.mode !== 'new'; });
+$('pfName').addEventListener('input', () => { PF.nameAuto = !$('pfName').value.trim(); $('pfAuto').hidden = PF.nameAuto || !(PF.mode === 'new' || PF.mode === 'edit'); });
 $('pfAuto').onclick = () => { PF.nameAuto = true; pfName(); };
 $('pfPrice').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pfSave(); } });
 $('pbAdd').onclick = () => pfClear(false); $('pfEmptyAdd').onclick = () => pfClear(false);
@@ -1144,7 +1145,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '27';
+const APP_VERSION = '28';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
