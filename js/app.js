@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=24';
-import { OWNER_EMAIL } from './config.js?v=24';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=24';
+import * as DB from './db.js?v=25';
+import { OWNER_EMAIL } from './config.js?v=25';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=25';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -730,6 +730,7 @@ function onScanned(code) {
   if (code === SC.last && now - SC.lastAt < 2500) return;   // same barcode still in front of the camera
   SC.last = code; SC.lastAt = now;
   try { navigator.vibrate?.(60); } catch (e) { }
+  camStop();   // got a barcode: close the camera, no need to press ปิดกล้อง
   handleCode(code);
 }
 
@@ -1139,7 +1140,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '24';
+const APP_VERSION = '25';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
