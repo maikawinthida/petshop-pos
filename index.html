@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=7">
+<link rel="stylesheet" href="css/app.css?v=8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -34,6 +34,7 @@
   <h1 id="shopTitle">ร้านเพ็ทช็อป</h1>
   <div class="tabs" role="tablist">
     <button id="tabSell" role="tab" aria-selected="true">ขาย</button>
+    <button id="tabScan" role="tab" aria-selected="false">สแกน</button>
     <button id="tabProd" role="tab" aria-selected="false">สินค้า</button>
     <button id="tabBills" role="tab" aria-selected="false">บิลวันนี้</button>
     <button id="tabReport" role="tab" aria-selected="false">รายงาน</button>
@@ -88,6 +89,39 @@
   </aside>
 </main>
 
+<main id="viewScan" hidden>
+  <div class="seg big scanmode" id="scanMode">
+    <button data-m="check" aria-pressed="true">เช็คราคา</button><button data-m="recv" aria-pressed="false">รับของเข้า</button><button data-m="count" aria-pressed="false">นับสต็อก</button>
+  </div>
+  <section class="card scanbox">
+    <div id="cam" class="cam" hidden></div>
+    <div class="inrow">
+      <button class="primary" id="camBtn">เปิดกล้องสแกน</button>
+      <input class="tin num" id="scanInput" inputmode="numeric" autocomplete="off" placeholder="หรือพิมพ์บาร์โค้ด / ชื่อ แล้ว Enter">
+    </div>
+    <div class="hint" id="scanMsg"></div>
+  </section>
+
+  <section id="modeCheck" class="card scanres">
+    <div class="empty" id="chkEmpty">สแกนสินค้าเพื่อดูราคา ต้นทุน สต็อก และร้านที่ถูกสุด</div>
+    <div id="chkCard" hidden></div>
+  </section>
+
+  <section id="modeRecv" class="card scanres" hidden>
+    <div class="field2"><span class="lab">รับจากร้าน</span><div class="fchips" id="rcvSup"></div></div>
+    <div id="rcvList"></div>
+    <div class="empty" id="rcvEmpty">เลือกร้าน แล้วสแกนสินค้าที่รับเข้ามาทีละตัว</div>
+    <div class="rcvfoot" id="rcvFoot" hidden>
+      <div><span class="hint">รวม</span> <b class="num" id="rcvTotal">0</b> <span class="hint">บาท · <span id="rcvCount">0</span> รายการ</span></div>
+      <div class="savebar"><button class="ghost bad" id="rcvClear">ล้างรายการ</button><button class="primary" id="rcvSave">บันทึกรับของเข้า</button></div>
+    </div>
+  </section>
+
+  <section id="modeCount" class="card scanres" hidden>
+    <div id="cntCard"><div class="empty">สแกนสินค้าที่ชั้น แล้วใส่จำนวนที่นับได้จริง</div></div>
+    <details class="recentbox" id="cntDoneBox"><summary>นับแล้ววันนี้ <span class="hint" id="cntDoneCount"></span></summary><div id="cntDone"></div></details>
+  </section>
+</main>
 <main id="viewProd" hidden>
   <section class="card pform">
     <div class="phead"><h2 id="pfTitle">เพิ่มสินค้าใหม่</h2><button class="ghost" id="pfReset">ล้างฟอร์ม</button></div>
@@ -223,6 +257,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=7"></script>
+<script type="module" src="js/app.js?v=8"></script>
 </body>
 </html>

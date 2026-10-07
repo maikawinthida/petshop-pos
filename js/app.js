@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=7';
-import { OWNER_EMAIL } from './config.js?v=7';
+import * as DB from './db.js?v=8';
+import { OWNER_EMAIL } from './config.js?v=8';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -371,10 +371,12 @@ function renderBills() {
   $('emptyPrices').hidden = S.priceLog.length > 0;
 }
 function tab(w) {
-  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
+  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewScan', 'tabScan', 'scan'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
+  if (w !== 'scan' && typeof SC !== 'undefined' && SC.camOn) camStop();
+  if (w === 'scan') scanMode(SC.mode);
   if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else if (w === 'report') loadReport(); else focusQ();
 }
-$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report');
+$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report'); $('tabScan').onclick = () => tab('scan');
 
 /* ---------- settings ---------- */
 function fillSettings() {
@@ -679,6 +681,158 @@ $('histFile').onchange = async e => {
 function setAutoPrint(v) { S.autoPrint = v; store.set('autoPrint', v); $('autoPrintSell').checked = v; $('setAutoPrint').checked = v; }
 $('autoPrintSell').onchange = e => { setAutoPrint(e.target.checked); focusQ(); };
 
+/* ---------- scan view (phone): check price, receive goods, count stock ---------- */
+const SC = { mode: 'check', cam: null, camOn: false, last: '', lastAt: 0, sup: store.get('rcvSup', ''), rcv: store.get('rcvList', []), counted: store.get('counted', { date: '', list: [] }) };
+if (SC.counted.date !== today()) SC.counted = { date: today(), list: [] };
+$('scanMode').querySelectorAll('button').forEach(b => b.onclick = () => scanMode(b.dataset.m));
+function scanMode(m) {
+  SC.mode = m; $('scanMode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.m === m));
+  $('modeCheck').hidden = m !== 'check'; $('modeRecv').hidden = m !== 'recv'; $('modeCount').hidden = m !== 'count';
+  $('scanMsg').textContent = ''; if (m === 'recv') drawRecv(); if (m === 'count') drawCounted();
+}
+function loadScanLib() {
+  if (window.Html5Qrcode) return Promise.resolve();
+  return new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+}
+async function camStart() {
+  try {
+    $('camBtn').disabled = true; $('scanMsg').textContent = 'กำลังเปิดกล้อง…';
+    await loadScanLib();
+    const F = Html5QrcodeSupportedFormats;
+    $('cam').hidden = false;
+    SC.cam = new Html5Qrcode('cam', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF], experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false });
+    await SC.cam.start({ facingMode: 'environment' }, { fps: 12, qrbox: (w, h) => ({ width: Math.min(w * .85, 340), height: Math.min(h * .45, 160) }) }, code => onScanned(code), () => { });
+    SC.camOn = true; $('camBtn').textContent = 'ปิดกล้อง'; $('scanMsg').textContent = 'ส่องบาร์โค้ดให้อยู่ในกรอบ';
+  } catch (e) {
+    console.error(e); $('cam').hidden = true;
+    $('scanMsg').textContent = 'เปิดกล้องไม่ได้ ตรวจว่าอนุญาตให้เว็บนี้ใช้กล้องแล้ว (หรือพิมพ์บาร์โค้ดในช่องแทน)';
+  } finally { $('camBtn').disabled = false; }
+}
+async function camStop() { try { await SC.cam?.stop(); SC.cam?.clear(); } catch (e) { } SC.camOn = false; $('cam').hidden = true; $('camBtn').textContent = 'เปิดกล้องสแกน'; }
+$('camBtn').onclick = () => SC.camOn ? camStop() : camStart();
+function onScanned(code) {
+  code = String(code).trim(); const now = Date.now();
+  if (code === SC.last && now - SC.lastAt < 2500) return;   // same barcode still in front of the camera
+  SC.last = code; SC.lastAt = now;
+  try { navigator.vibrate?.(60); } catch (e) { }
+  handleCode(code);
+}
+$('scanInput').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return; e.preventDefault();
+  const v = e.target.value.trim(); if (!v) return; e.target.value = '';
+  if (P.has(v) || /^\d{4,}$/.test(v)) return handleCode(v);
+  // a name: pick from the finder, then come back here
+  openPicker(v);
+});
+function openPicker(q) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
+  const res = LIST.filter(p => words.every(w => p.key.includes(w))).slice(0, 30);
+  const s = openModal(`<h2>เลือกสินค้า</h2>${res.length ? '' : '<p class="hint">ไม่พบสินค้า</p>'}<div class="sups">${res.map((p, i) => `<button class="recent" data-i="${i}"><span class="nm">${esc(p.name)}<div class="hint num">${esc(p.code)}</div></span><span class="num">${fmt0(p.price)} ฿</span></button>`).join('')}</div><div class="mrow"><button class="ghost" id="pkClose">ปิด</button></div>`);
+  s.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { closeModal(); handleCode(res[+b.dataset.i].code); });
+  s.querySelector('#pkClose').onclick = closeModal;
+}
+function handleCode(code) {
+  const p = P.get(code);
+  if (!p) {
+    $('scanMsg').innerHTML = `ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> <button class="ghost" id="scanAdd">เพิ่มสินค้าใหม่</button>`;
+    $('scanAdd').onclick = () => { camStop(); tab('prod'); pfClear(false); $('pfCode').value = code; pfCheckCode(); };
+    return;
+  }
+  $('scanMsg').textContent = '';
+  if (SC.mode === 'check') showCheck(p); else if (SC.mode === 'recv') addRecv(p); else showCount(p);
+}
+
+/* check price */
+function supRows(p) {
+  const list = Object.entries(p.sp || {}).map(([n, v]) => ({ n, c: v.c, d: v.d })).sort((a, b) => a.c - b.c);
+  if (!list.length) return '<div class="hint">ยังไม่มีบันทึกต้นทุนแยกร้าน (จะเริ่มมีเมื่อรับของเข้าผ่านหน้านี้)</div>';
+  return list.map((x, i) => `<div class="suprow${i === 0 && list.length > 1 ? ' best' : ''}"><span>${esc(x.n)}${i === 0 && list.length > 1 ? ' · ถูกสุด' : ''}</span><span class="num">${fmt0(x.c)} ฿ <span class="hint">${x.d ? x.d.slice(8) + '/' + x.d.slice(5, 7) : ''}</span></span></div>`).join('');
+}
+async function showCheck(p) {
+  $('chkEmpty').hidden = true; const box = $('chkCard'); box.hidden = false;
+  const margin = p.cost ? Math.round((p.price - p.cost) / p.price * 100) : null;
+  box.innerHTML = `<div class="pcard">
+    <h3>${esc(p.name)}</h3><div class="hint num">${esc(p.code)} · ${esc(p.unit)}</div>
+    <div class="bigprice num">${fmt0(p.price)} <span style="font-size:20px">บาท</span></div>
+    <div class="facts">
+      <div class="fact"><div class="k">ต้นทุน</div><div class="v num">${p.cost ? fmt0(p.cost) : '—'}</div></div>
+      <div class="fact"><div class="k">กำไร</div><div class="v num">${margin === null ? '—' : margin + '%'}</div></div>
+      <div class="fact"><div class="k">สต็อกในระบบ</div><div class="v num">${p.stock ?? '—'}</div></div>
+    </div>
+    <div class="inrow"><input class="tin num" id="chkPrice" inputmode="decimal" value="${p.price}" style="flex:0 1 140px" aria-label="ราคาใหม่"><button class="ghost" id="chkSave">บันทึกราคาใหม่</button><button class="ghost" id="chkEdit">แก้ข้อมูลสินค้า</button></div>
+    <strong>ต้นทุนแต่ละร้าน</strong><div class="sups">${supRows(p)}</div>
+    <strong>ประวัติราคา</strong><div class="hist" id="chkHist"><span class="hint">กำลังโหลด…</span></div>
+  </div>`;
+  $('chkSave').onclick = () => { const v = Math.round(parseFloat($('chkPrice').value) * 100) / 100; if (!(v >= 0) || v === p.price) return; const old = p.price; setProductPrice(p.code, v); toast(`บันทึกราคา ${fmt0(old)} → ${fmt0(v)} บาท`); showCheck(p); };
+  $('chkEdit').onclick = () => { camStop(); editProduct(p.code); };
+  try {
+    const h = await DB.priceHistory(p.code); if ($('chkCard').innerHTML.indexOf(p.code) < 0) return;
+    $('chkHist').innerHTML = h.length ? h.slice(0, 12).map(x => { const at = x.at?.toDate ? x.at.toDate() : null; const d = x.new - x.old;
+      return `<div class="l" style="display:flex;justify-content:space-between;gap:8px"><span>${at ? at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : ''} ${x.kind === 'cost' ? 'ต้นทุน' + (x.supplier ? ' (' + esc(x.supplier) + ')' : '') : 'ราคาขาย'}</span><span class="num">${fmt0(x.old)} → ${fmt0(x.new)} <span class="${d > 0 ? 'down' : 'up'}">${d > 0 ? '+' : ''}${fmt0(d)}</span></span></div>`; }).join('')
+      : '<span class="hint">ยังไม่เคยเปลี่ยนราคาในระบบใหม่</span>';
+  } catch (e) { $('chkHist').innerHTML = '<span class="hint">โหลดประวัติไม่ได้</span>'; }
+}
+
+/* receive goods */
+function drawRecvSup() {
+  const box = $('rcvSup'); box.innerHTML = '';
+  const list = supList().slice(); if (SC.sup && !list.includes(SC.sup)) list.push(SC.sup);
+  for (const n of list) { const b = document.createElement('button'); b.className = 'chip'; b.textContent = n; b.setAttribute('aria-pressed', SC.sup === n); b.onclick = () => { SC.sup = n; store.set('rcvSup', n); drawRecv(); }; box.appendChild(b); }
+  const a = document.createElement('button'); a.className = 'chip add'; a.textContent = '+ ร้านอื่น';
+  a.onclick = () => { const s = openModal(`<h2>เพิ่มร้าน</h2><input class="tin" id="newSup" placeholder="ชื่อร้าน"><div class="mrow"><button class="ghost" id="nsNo">ยกเลิก</button><button class="primary" id="nsOk">เพิ่ม</button></div>`);
+    s.querySelector('#nsNo').onclick = closeModal; s.querySelector('#newSup').focus();
+    s.querySelector('#nsOk').onclick = () => { const v = s.querySelector('#newSup').value.trim(); if (v) { addSupplier(v); SC.sup = v; store.set('rcvSup', v); } closeModal(); drawRecv(); }; };
+  box.appendChild(a);
+}
+function addRecv(p) {
+  if (!SC.sup) { $('scanMsg').textContent = 'เลือกร้านที่รับของมาก่อน'; return; }
+  const ex = SC.rcv.find(i => i.code === p.code);
+  if (ex) ex.qty++; else SC.rcv.unshift({ code: p.code, name: p.name, qty: 1, cost: p.sp?.[SC.sup]?.c || p.cost || 0, oldCost: p.cost || 0 });
+  store.set('rcvList', SC.rcv); drawRecv(); toast(`${p.name.slice(0, 22)} ${ex ? '+1' : 'เพิ่มแล้ว'}`);
+}
+function drawRecv() {
+  drawRecvSup();
+  const box = $('rcvList'); box.innerHTML = '';
+  SC.rcv.forEach((it, idx) => {
+    const p = P.get(it.code); const best = p ? Object.entries(p.sp || {}).filter(([n]) => n !== SC.sup).sort((a, b) => a[1].c - b[1].c)[0] : null;
+    const row = document.createElement('div'); row.className = 'rrow';
+    row.innerHTML = `<div class="nm">${esc(it.name)}<div class="hint num">${esc(it.code)}${p?.cost ? ' · ต้นทุนเดิม ' + fmt0(p.cost) : ''}</div>${best && it.cost > best[1].c ? `<div class="cheaper">ร้าน ${esc(best[0])} ถูกกว่า (${fmt0(best[1].c)} ฿)</div>` : ''}</div>
+      <div class="rinputs"><label>จำนวน<input class="num" data-f="qty" inputmode="numeric" value="${it.qty}"></label><label>ต้นทุน/ชิ้น<input class="num" data-f="cost" inputmode="decimal" value="${it.cost || ''}"></label><button class="del" aria-label="ลบ">×</button></div>`;
+    row.querySelectorAll('input').forEach(inp => inp.onchange = () => { const v = parseFloat(inp.value); it[inp.dataset.f] = inp.dataset.f === 'qty' ? Math.max(1, Math.round(v) || 1) : (v >= 0 ? v : 0); store.set('rcvList', SC.rcv); drawRecv(); });
+    row.querySelector('.del').onclick = () => { SC.rcv.splice(idx, 1); store.set('rcvList', SC.rcv); drawRecv(); };
+    box.appendChild(row);
+  });
+  $('rcvEmpty').hidden = SC.rcv.length > 0; $('rcvFoot').hidden = !SC.rcv.length;
+  $('rcvTotal').textContent = fmt0(SC.rcv.reduce((s, i) => s + i.qty * (i.cost || 0), 0)); $('rcvCount').textContent = SC.rcv.length;
+}
+$('rcvClear').onclick = () => confirmBox('ล้างรายการรับของที่ยังไม่บันทึก?', 'ล้าง', () => { SC.rcv = []; store.set('rcvList', []); drawRecv(); });
+$('rcvSave').onclick = () => {
+  if (!SC.sup) { toast('เลือกร้านก่อน'); return; }
+  const items = SC.rcv.map(i => ({ ...i })); const total = items.reduce((s, i) => s + i.qty * (i.cost || 0), 0);
+  confirmBox(`บันทึกรับของจาก ${SC.sup} ${items.length} รายการ รวม ${fmt0(total)} บาท?`, 'บันทึก', () => {
+    DB.receiveGoods({ date: today(), supplier: SC.sup, items, total, email: S.user?.email || '' }).catch(fail);
+    for (const i of items) { const p = P.get(i.code); if (p) { p.stock = (p.stock || 0) + i.qty; if (i.cost > 0) { p.cost = i.cost; p.sp = { ...(p.sp || {}), [SC.sup]: { c: i.cost, d: today() } }; } } }
+    SC.rcv = []; store.set('rcvList', []); drawRecv(); toast('บันทึกรับของแล้ว สต็อกเพิ่มแล้ว');
+  });
+};
+
+/* count stock */
+function showCount(p) {
+  const box = $('cntCard');
+  box.innerHTML = `<div class="pcard"><h3>${esc(p.name)}</h3><div class="hint num">${esc(p.code)} · สต็อกในระบบ ${p.stock ?? '—'}</div>
+    <div class="inrow"><input class="cntnum num" id="cntQty" inputmode="numeric" placeholder="0" aria-label="จำนวนที่นับได้"><button class="primary" id="cntSave">บันทึก</button></div></div>`;
+  const q = $('cntQty'); q.focus();
+  const save = () => { const v = parseInt(q.value); if (isNaN(v) || v < 0) { toast('ใส่จำนวนที่นับได้'); return; }
+    DB.setStock(p.code, p.name, p.stock ?? null, v, S.user?.email).catch(fail);
+    SC.counted.list = [{ code: p.code, name: p.name, old: p.stock ?? null, n: v }, ...SC.counted.list.filter(x => x.code !== p.code)]; store.set('counted', SC.counted);
+    p.stock = v; box.innerHTML = `<div class="empty">บันทึก ${esc(p.name.slice(0, 30))} = ${v} แล้ว สแกนตัวต่อไปได้เลย</div>`; drawCounted(); };
+  $('cntSave').onclick = save; q.onkeydown = e => { if (e.key === 'Enter') save(); };
+}
+function drawCounted() {
+  $('cntDoneCount').textContent = `(${SC.counted.list.length})`;
+  $('cntDone').innerHTML = SC.counted.list.map(x => `<div class="recent"><span class="nm">${esc(x.name)}<div class="hint num">${esc(x.code)}</div></span><span class="num">${x.old ?? '—'} → <b>${x.n}</b></span></div>`).join('') || '<div class="hint" style="padding:8px">ยังไม่ได้นับ</div>';
+}
+
 /* ---------- start-up: sign in, check access, first import, then load ---------- */
 const gate = (msg, { login = false, importer = false, logout = false } = {}) => {
   $('gate').hidden = false; $('appRoot').hidden = true; $('gateMsg').textContent = msg;
@@ -713,7 +867,8 @@ function startData() {
 function showApp() {
   appShown = true; store.set('ready', true);
   $('gate').hidden = true; $('appRoot').hidden = false;
-  rebuildCatalog(); renderSellers(); pfDrawChips(); renderRecent(); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync(); focusQ();
+  rebuildCatalog(); renderSellers(); pfDrawChips(); renderRecent(); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync();
+  if (matchMedia('(max-width: 700px)').matches) tab('scan'); else focusQ();
 }
 function noAccess() {
   unsubs.forEach(u => u()); unsubs = [];

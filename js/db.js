@@ -7,7 +7,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAut
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, onSnapshot,
   setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { firebaseConfig } from './config.js?v=7';
+import { firebaseConfig } from './config.js?v=8';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -24,7 +24,7 @@ export function packProduct(p) {
   return o;
 }
 export function unpackProduct(code, o) {
-  return { code, name: o.n, unit: o.u, price: o.p, cost: o.c, brand: o.b, type: o.t, animal: o.a, big: o.g, supplier: o.s, rank: o.r || 0, stock: o.st };
+  return { code, name: o.n, unit: o.u, price: o.p, cost: o.c, brand: o.b, type: o.t, animal: o.a, big: o.g, supplier: o.s, rank: o.r || 0, stock: o.st, sp: o.sp || {} };
 }
 
 /* ---------- auth ---------- */
@@ -106,6 +106,34 @@ export async function importHistory(days, progress) {
     await b.commit(); progress?.(Math.min(i + 400, days.length), days.length);
   }
   await setDoc(doc(db, 'meta', 'info'), { history: days.length, historyFrom: days[0]?.date || '' }, { merge: true });
+}
+
+/* ---------- receiving goods & stock counts ---------- */
+// one delivery from one supplier: adds stock, records this supplier's cost, logs cost changes
+export function receiveGoods(rec) {
+  const b = writeBatch(db);
+  const id = rec.date.replace(/-/g, '') + '-' + Date.now().toString(36);
+  b.set(doc(db, 'receipts', id), { ...rec, createdAt: serverTimestamp() });
+  const byChunk = {};
+  for (const it of rec.items) {
+    const c = chunkOf(it.code);
+    const f = { st: increment(it.qty) };
+    if (it.cost > 0) { f.c = it.cost; f.s = rec.supplier; f.sp = { [rec.supplier]: { c: it.cost, d: rec.date } }; }
+    (byChunk[c] ||= {})[it.code] = f;
+    if (it.cost > 0 && it.cost !== it.oldCost) b.set(doc(collection(db, 'priceLog')), { code: it.code, name: it.name, kind: 'cost', old: it.oldCost || 0, new: it.cost, supplier: rec.supplier, email: rec.email || '', at: serverTimestamp() });
+  }
+  for (const [c, items] of Object.entries(byChunk)) b.set(doc(db, 'catalog', c), { items }, { merge: true });
+  return b.commit();
+}
+export function setStock(code, name, oldQty, newQty, email) {
+  const b = writeBatch(db);
+  b.set(chunkRef(code), { items: { [code]: { st: newQty, sc: new Date().toISOString().slice(0, 10) } } }, { merge: true });
+  b.set(doc(collection(db, 'stockLog')), { code, name, old: oldQty ?? null, new: newQty, email: email || '', at: serverTimestamp() });
+  return b.commit();
+}
+export async function priceHistory(code) {
+  const s = await getDocs(query(collection(db, 'priceLog'), where('code', '==', code)));
+  return s.docs.map(d => d.data()).sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
 }
 
 /* ---------- first-time import ---------- */

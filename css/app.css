@@ -202,3 +202,36 @@ tr.cancel td:last-child{text-decoration:none}
 .up{color:var(--accent)}.down{color:var(--bad)}
 .ptoggle{display:flex;align-items:center;gap:8px;font-weight:600}
 .ptoggle input{width:20px;height:20px}
+/* scan (phone) */
+#viewScan{max-width:680px;display:grid;gap:12px}
+.scanmode{display:flex;width:100%}
+.scanmode button{flex:1;padding:12px 6px;font-size:16px}
+.scanbox{padding:12px;display:grid;gap:10px}
+.cam{width:100%;border-radius:var(--r);overflow:hidden;background:#000;min-height:200px}
+.cam video{width:100%!important;height:auto!important;display:block}
+.scanres{padding:14px;display:grid;gap:12px}
+.pcard{display:grid;gap:10px}
+.pcard h3{margin:0;font-size:19px;line-height:1.35}
+.bigprice{font-size:44px;font-weight:700;color:var(--accent);line-height:1}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fact{background:var(--bg);border-radius:8px;padding:8px 10px}
+.fact .k{font-size:12px;color:var(--muted)}.fact .v{font-size:18px;font-weight:600}
+.sups{display:grid;gap:4px}
+.suprow{display:flex;justify-content:space-between;padding:6px 10px;border-radius:8px;background:var(--bg)}
+.suprow.best{background:var(--accent-soft);font-weight:700}
+.hist{font-size:14px;display:grid;gap:2px}
+.rrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 0;border-top:1px solid var(--line);align-items:center}
+.rrow .nm{min-width:0}
+.rinputs{display:flex;gap:6px;align-items:center}
+.rinputs input{width:74px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);text-align:right;font-size:16px}
+.rinputs label{font-size:11px;color:var(--muted);display:grid;gap:2px}
+.cheaper{font-size:12px;color:var(--warn)}
+.rcvfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px}
+.cntnum{font-size:40px;width:160px;text-align:center;border:2px solid var(--accent);border-radius:var(--r);padding:8px;background:var(--bg)}
+@media (max-width:700px){
+  header{gap:8px}
+  header h1{font-size:17px}
+  .tabs{width:100%;overflow-x:auto}
+  .tabs button{padding:6px 12px;white-space:nowrap}
+  .clock{display:none}
+}

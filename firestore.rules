@@ -11,13 +11,14 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/meta/staff)
         && request.auth.token.email.lower() in get(/databases/$(database)/documents/meta/staff).data.emails);
     }
+    // settings; only the owner may change who has access
     match /meta/{name} {
       allow read: if isStaff();
       allow write: if (name == 'staff' && isOwner()) || (name != 'staff' && isStaff());
     }
-    match /catalog/{chunk} { allow read, write: if isStaff(); }
-    match /sales/{id} { allow read, create, update: if isStaff(); }
-    match /priceLog/{id} { allow read, create: if isStaff(); }
-    match /daily/{day} { allow read, write: if isStaff(); }
+    // everything else (products, bills, daily totals, price history, deliveries, stock counts)
+    match /{coll}/{id} {
+      allow read, write: if coll != 'meta' && isStaff();
+    }
   }
 }
