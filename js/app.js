@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=8';
-import { OWNER_EMAIL } from './config.js?v=8';
+import * as DB from './db.js?v=9';
+import { OWNER_EMAIL } from './config.js?v=9';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -52,8 +52,10 @@ function rebuildCatalog() {
   for (const t of S.tabs) for (const i of t.cart) { const p = P.get(i.code); if (p && !i.custom) { i.price = p.price; i.name = p.name; } }
   if (appShown) { render(); if (!$('viewBills').hidden) renderBills(); }
 }
+let loadErrors = [];
 function onChunk(id, items, fromCache, pending) {
   chunkItems[id] = items; chunksSeen.add(id);
+  if (!appShown) $('gateMsg').textContent = `กำลังโหลดข้อมูลสินค้า… (${chunksSeen.size}/${DB.CHUNKS})`;
   clearTimeout(catalogTimer); catalogTimer = setTimeout(rebuildCatalog, 120);
   if (chunksSeen.size === DB.CHUNKS && !appShown) { setTimeout(showApp, 150); }
   setSync();
@@ -860,7 +862,17 @@ function startData() {
   unsubs.push(DB.watchMeta('brands', d => { const list = d?.list || []; BRANDS = list.map(b => [b.th, b.en || '', 0]); rebuildCatalog(); pfBrandList(); }));
   unsubs.push(DB.watchMeta('settings', d => { if (d) { S.settings = { ...DEFAULT_SETTINGS, ...d }; store.set('settingsCache', S.settings); } renderSellers(); pfDrawChips(); fillSettings(); }));
   if (S.isOwner) unsubs.push(DB.watchMeta('staff', d => { S.staff = d?.emails || []; fillSettings(); }, () => { }));
-  unsubs.push(DB.watchCatalog(onChunk, e => { console.error(e); if (e.code === 'permission-denied') noAccess(); }));
+  unsubs.push(DB.watchCatalog(onChunk, e => { console.error(e); loadErrors.push(e.code || e.message); if (e.code === 'permission-denied') noAccess(); }));
+  clearTimeout(startData.t);
+  startData.t = setTimeout(() => {   // still not loaded: show what we have, or explain and offer a reset
+    if (appShown) return;
+    if (chunksSeen.size >= DB.CHUNKS / 2) return showApp();
+    gate(`โหลดข้อมูลไม่ครบ (${chunksSeen.size}/${DB.CHUNKS})${loadErrors.length ? ' · ' + [...new Set(loadErrors)].join(', ') : ''}`, { logout: true });
+    const box = $('gateLogout').parentNode; if (!$('gateRetry')) box.insertAdjacentHTML('beforeend',
+      `<button class="primary" id="gateRetry">โหลดใหม่</button><button class="ghost" id="gateReset">ล้างข้อมูลในเครื่องนี้แล้วโหลดใหม่</button><p class="hint">ล้างข้อมูลในเครื่องไม่ทำให้ข้อมูลร้านหาย ข้อมูลทั้งหมดอยู่บนคลาวด์</p>`);
+    $('gateRetry').onclick = () => location.reload();
+    $('gateReset').onclick = async () => { $('gateReset').disabled = true; await DB.resetLocalCache(); location.reload(); };
+  }, 15000);
   unsubs.push(DB.watchPriceLog(list => { S.priceLog = list; if (!$('viewBills').hidden) renderBills(); }));
   salesDate = null; watchToday();
 }

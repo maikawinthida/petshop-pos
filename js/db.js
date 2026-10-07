@@ -4,14 +4,27 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, onSnapshot,
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, memoryLocalCache, doc, collection, onSnapshot,
   setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { firebaseConfig } from './config.js?v=8';
+import { firebaseConfig } from './config.js?v=9';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+// iPhone/iPad Safari is more reliable with a single-tab offline cache; if the offline cache can't start, run without it
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let db;
+try {
+  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true,
+    localCache: persistentLocalCache({ tabManager: isIOS ? persistentSingleTabManager({}) : persistentMultipleTabManager() }) });
+} catch (e) {
+  console.warn('offline cache unavailable', e);
+  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true, localCache: memoryLocalCache() });
+}
+// wipe this device's offline copy (used by the "reset" button when loading gets stuck)
+export async function resetLocalCache() {
+  try { const dbs = await indexedDB.databases?.() || []; await Promise.all(dbs.filter(d => d.name?.startsWith('firestore')).map(d => new Promise(r => { const q = indexedDB.deleteDatabase(d.name); q.onsuccess = q.onerror = q.onblocked = r; }))); } catch (e) { }
+}
 
 export const CHUNKS = 16;
 export function chunkOf(code) { let h = 0; for (const ch of String(code)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return 'c' + String(h % CHUNKS).padStart(2, '0'); }
