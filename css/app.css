@@ -233,3 +233,5 @@ tr.cancel td:last-child{text-decoration:none}
 .closeb{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#c62828;border:2px solid #c62828;border-radius:var(--r);padding:8px 14px;font-weight:700;font-size:16px;white-space:nowrap}
 .closeb:hover{background:#fdecea}
 .closeb kbd{color:#c62828;border-color:#f3b4ae;background:#fff}
+
+.receipt .shop{font-size:15px}.receipt .small{font-size:11px;color:#444}.receipt .big{font-size:15px}

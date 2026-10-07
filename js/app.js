@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=15';
-import { OWNER_EMAIL } from './config.js?v=15';
+import * as DB from './db.js?v=16';
+import { OWNER_EMAIL } from './config.js?v=16';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -337,13 +337,16 @@ function finish(method, recv) {
   if (S.autoPrint) printReceipt(bill);
 }
 function receiptHTML(b) {
-  return `<div class="receipt"><div class="c"><b>${esc(S.settings.shop)}</b><br>ใบเสร็จรับเงิน</div><hr>
-  <div class="l"><span>${esc(b.id)}</span><span>${b.date.split('-').reverse().join('/')} ${b.time}</span></div><hr>
-  ${b.items.map(i => `<div>${esc(i.name)}</div><div class="l"><span>&nbsp;&nbsp;${i.qty} x ${fmt0(i.price)}</span><span>${fmt(i.qty * i.price)}</span></div>`).join('')}<hr>
-  <div class="l"><span>รวม ${b.count} ชิ้น</span><span>${fmt(b.sub)}</span></div>
-  ${b.disc ? `<div class="l"><span>ส่วนลด</span><span>-${fmt(b.disc)}</span></div>` : ''}
-  <div class="l"><b>สุทธิ</b><b>${fmt(b.net)}</b></div><div class="l"><span>${METHOD[b.method]}</span><span>${fmt(b.recv)}</span></div>
-  ${b.method === 'cash' ? `<div class="l"><span>เงินทอน</span><span>${fmt(b.change)}</span></div>` : ''}<hr><div class="c">ขอบคุณที่อุดหนุนค่ะ</div></div>`;
+  const [y, m, d] = b.date.split('-'); const when = `${d}/${m}/${+y + 543} ${b.time}`;
+  const money = n => fmt0(Math.round(n * 100) / 100);
+  return `<div class="receipt"><div class="c"><b class="shop">${esc(S.settings.shop)}</b><br>ใบเสร็จรับเงิน</div><hr>
+  <div>วันที่ ${when}</div><div class="small">เลขที่ ${esc(b.id)}</div><hr>
+  ${b.items.map(i => `<div>${esc(i.name)}</div><div class="l"><span>&nbsp;${i.qty} x ${money(i.price)}</span><span>${money(i.qty * i.price)}</span></div>`).join('')}<hr>
+  <div class="l"><span>รวม ${b.count} ชิ้น</span><span>${money(b.sub)}</span></div>
+  ${b.disc ? `<div class="l"><span>ส่วนลด</span><span>-${money(b.disc)}</span></div>` : ''}
+  <div class="l big"><b>สุทธิ</b><b>${money(b.net)}</b></div>
+  <div class="l"><span>${METHOD[b.method]}</span><span>${money(b.recv)}</span></div>
+  ${b.method === 'cash' ? `<div class="l"><span>เงินทอน</span><span>${money(b.change)}</span></div>` : ''}<hr><div class="c">ขอบคุณที่อุดหนุนค่ะ</div></div>`;
 }
 function showReceipt(b, fresh) {
   const s = openModal(`<h2>${fresh ? (b.method === 'cash' ? 'ทอน ' + fmt(b.change) + ' บาท' : 'รับเงินแล้ว') : 'ใบเสร็จ ' + esc(b.id)}</h2>${receiptHTML(b)}
@@ -358,8 +361,10 @@ function printReceipt(b) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     @font-face{font-family:"Google Sans";src:url(${fontUrl}) format("woff2");font-weight:400 700}
     html,body{margin:0;padding:0;background:#fff;color:#000}
-    .receipt{width:48mm;margin:0 auto;padding:2mm 0 6mm;font-family:"Google Sans",sans-serif;font-size:11.5px;line-height:1.35;font-weight:500}
-    .c{text-align:center}.l{display:flex;justify-content:space-between;gap:4px}.l span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+    /* 58 mm paper prints about 48 mm; keep 3 mm spare on the right so nothing is cut */
+    .receipt{width:44mm;margin:0 0 0 1mm;padding:1mm 0 5mm;font-family:"Google Sans",sans-serif;font-size:12.5px;line-height:1.4;font-weight:600;color:#000}
+    .c{text-align:center}.l{display:flex;justify-content:space-between;gap:4px}.l span:last-child,.l b:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+    .shop{font-size:15px}.small{font-size:10.5px}.big{font-size:15px}
     hr{border:0;border-top:1px dashed #000;margin:4px 0} b{font-weight:700}
   </style></head><body>${receiptHTML(b)}</body></html>`;
   const f = document.createElement('iframe'); f.className = 'printframe'; document.body.appendChild(f);
