@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=10">
+<link rel="stylesheet" href="css/app.css?v=11">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -49,7 +49,7 @@
     <div class="billtabs" id="billTabs" role="tablist" aria-label="บิลที่เปิดอยู่"></div>
     <div class="scan">
       <label for="q">ยิงบาร์โค้ด หรือพิมพ์ชื่อ/ยี่ห้อ (จะเปิดหน้าค้นหาให้)</label>
-      <div class="scanrow"><input id="q" autocomplete="off" placeholder="ยิงบาร์โค้ด หรือพิมพ์ เช่น สมาร์ทฮาร์ท"><button class="ghost" id="findBtn">ค้นหาสินค้า <kbd>F1</kbd></button></div>
+      <div class="scanrow"><input id="q" autocomplete="off" placeholder="ยิงบาร์โค้ด, 5 ตัวท้าย หรือชื่อ เช่น สมาร์ทฮาร์ท"><button class="ghost" id="findBtn">ค้นหาสินค้า <kbd>F1</kbd></button></div>
     </div>
     <div id="notice"></div>
     <div class="cartwrap">
@@ -97,9 +97,10 @@
     <div id="cam" class="cam" hidden></div>
     <div class="inrow">
       <button class="primary" id="camBtn">เปิดกล้องสแกน</button>
-      <input class="tin num" id="scanInput" inputmode="numeric" autocomplete="off" placeholder="หรือพิมพ์บาร์โค้ด / ชื่อ แล้ว Enter">
+      <input class="tin num" id="scanInput" type="search" enterkeyhint="search" autocomplete="off" placeholder="พิมพ์ 5 ตัวท้ายบาร์โค้ด หรือชื่อ">
     </div>
     <div class="hint" id="scanMsg"></div>
+    <div class="sups" id="scanHits"></div>
   </section>
 
   <section id="modeCheck" class="card scanres">
@@ -257,6 +258,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=10"></script>
+<script type="module" src="js/app.js?v=11"></script>
 </body>
 </html>

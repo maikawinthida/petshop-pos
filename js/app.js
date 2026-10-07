@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=10';
-import { OWNER_EMAIL } from './config.js?v=10';
+import * as DB from './db.js?v=11';
+import { OWNER_EMAIL } from './config.js?v=11';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -149,6 +149,13 @@ function closeCurrentTab() { S.tabs.splice(S.cur, 1); if (!S.tabs.length) S.tabs
 $('holdBtn').onclick = holdBill;
 
 /* ---------- scanning ---------- */
+// "09278" finds every product whose barcode ends in 09278 (like the old program)
+function findByDigits(v) {
+  if (P.has(v)) return [P.get(v)];
+  if (!/^\d{3,}$/.test(v)) return [];
+  const ends = LIST.filter(p => p.code.endsWith(v));
+  return ends.length ? ends : (v.length >= 4 ? LIST.filter(p => p.code.includes(v)) : []);
+}
 function addItem(p, qty = 1) {
   const cart = T().cart; const ex = cart.find(i => i.code === p.code);
   if (ex) { ex.qty += qty; cart.splice(cart.indexOf(ex), 1); cart.unshift(ex); }
@@ -175,8 +182,13 @@ $('q').addEventListener('keydown', e => {
   const cart = T().cart;
   const m = v.match(/^\*(\d+)$/); if (m) { if (cart[0]) { cart[0].qty = Math.max(1, +m[1]); render(); } return; }
   if (v === '-') { const it = cart[0]; if (it) { if (it.qty > 1) { it.qty--; toast('ลดเหลือ ' + it.qty + ' ชิ้น'); } else { cart.shift(); toast('เอารายการล่าสุดออกแล้ว'); } render(); } return; }
-  if (P.has(v)) { addItem(P.get(v)); return; }
-  if (/^\d{4,}$/.test(v)) { notFound(v); return; }
+  if (/^\d+$/.test(v)) {
+    const hits = findByDigits(v);
+    if (hits.length === 1) { addItem(hits[0]); return; }
+    if (hits.length > 1) { openFinder(v); return; }
+    if (v.length >= 8) { notFound(v); return; }
+    toast('ไม่พบสินค้าที่บาร์โค้ดลงท้ายด้วย ' + v); return;
+  }
   openFinder(v);
 });
 $('findBtn').onclick = () => openFinder('');
@@ -187,6 +199,7 @@ const ANIMALS = [['', 'ทุกสัตว์'], ['cat', 'แมว'], ['dog',
 const F = { q: '', brand: '', type: '', animal: '', sort: 'rank', sel: 0, res: [], added: 0 };
 function filterF() {
   const words = F.q.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
+  if (/^\d{3,}$/.test(F.q.trim())) { const d = F.q.trim(); F.res = LIST.filter(p => p.code.endsWith(d)); if (!F.res.length) F.res = LIST.filter(p => p.code.includes(d)); F.sel = 0; return; }
   const r = LIST.filter(p => (F.brand === '' || p.brand === +F.brand) && (F.type === '' || (F.type === 'big' ? p.big : p.type === F.type)) && (F.animal === '' || p.animal === F.animal) && words.every(w => p.key.includes(w)));
   const cmp = { rank: (a, b) => b.rank - a.rank, name: (a, b) => a.name.localeCompare(b.name, 'th'), price: (a, b) => a.price - b.price, pricedesc: (a, b) => b.price - a.price }[F.sort];
   F.res = r.sort(cmp); F.sel = 0;
@@ -719,12 +732,29 @@ function onScanned(code) {
   try { navigator.vibrate?.(60); } catch (e) { }
   handleCode(code);
 }
+function scanHits(v) {
+  if (/^\d+$/.test(v)) return v.length >= 3 ? findByDigits(v) : [];
+  if (v.length < 2) return [];
+  const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
+  return LIST.filter(p => words.every(w => p.key.includes(w)));
+}
+function drawScanHits(list) {
+  const box = $('scanHits'); box.innerHTML = '';
+  for (const p of list.slice(0, 12)) {
+    const b = document.createElement('button'); b.className = 'recent';
+    b.innerHTML = `<span class="nm">${esc(p.name)}<div class="hint num">${esc(p.code)}</div></span><span class="num">${fmt0(p.price)} ฿</span>`;
+    b.onclick = () => { $('scanInput').value = ''; box.innerHTML = ''; $('scanInput').blur(); handleCode(p.code); }; box.appendChild(b);
+  }
+  if (list.length > 12) box.insertAdjacentHTML('beforeend', `<div class="hint">พบ ${list.length} รายการ พิมพ์เพิ่มให้แคบลง</div>`);
+}
+$('scanInput').addEventListener('input', e => { const v = e.target.value.trim(); drawScanHits(scanHits(v)); $('scanMsg').textContent = v && /^\d{3,}$/.test(v) && !scanHits(v).length ? 'ไม่พบสินค้าที่บาร์โค้ดลงท้ายด้วย ' + v : ''; });
 $('scanInput').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return; e.preventDefault();
-  const v = e.target.value.trim(); if (!v) return; e.target.value = '';
-  if (P.has(v) || /^\d{4,}$/.test(v)) return handleCode(v);
-  // a name: pick from the finder, then come back here
-  openPicker(v);
+  const v = e.target.value.trim(); if (!v) return;
+  const hits = scanHits(v);
+  if (P.has(v) || hits.length === 1) { e.target.value = ''; $('scanHits').innerHTML = ''; e.target.blur(); return handleCode(P.has(v) ? v : hits[0].code); }
+  if (!hits.length && /^\d{8,}$/.test(v)) { e.target.value = ''; return handleCode(v); }
+  e.target.blur();   // several matches: list stays on screen to tap
 });
 function openPicker(q) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
