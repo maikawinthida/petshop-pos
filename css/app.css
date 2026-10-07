@@ -10,15 +10,8 @@
   --font:"Google Sans","Noto Sans Thai",system-ui,sans-serif; --mono:"Google Sans","Noto Sans Thai",system-ui,sans-serif;
   --r:10px;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#121713; --panel:#1b221d; --ink:#e4ece5; --muted:#9aab9f; --line:#2e3a31;
-  --accent:#4fbf72; --accent-ink:#0d1a11; --accent-soft:#1f3326;
-  --led-bg:#0a0d0b; --led:#ffd23f; --warn:#f0a050; --warn-soft:#3a2a14; --bad:#ff8a80; --bad-soft:#3d1c1a; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#121713; --panel:#1b221d; --ink:#e4ece5; --muted:#9aab9f; --line:#2e3a31;
-  --accent:#4fbf72; --accent-ink:#0d1a11; --accent-soft:#1f3326;
-  --led-bg:#0a0d0b; --led:#ffd23f; --warn:#f0a050; --warn-soft:#3a2a14; --bad:#ff8a80; --bad-soft:#3d1c1a; color-scheme:dark}
 *{box-sizing:border-box}
+:root{color-scheme:light}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;margin:0;padding-inline:16px;padding-block:12px}
 button,input,select{font:inherit;color:inherit}

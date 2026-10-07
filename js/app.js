@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=9';
-import { OWNER_EMAIL } from './config.js?v=9';
+import * as DB from './db.js?v=10';
+import { OWNER_EMAIL } from './config.js?v=10';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
