@@ -1,4 +1,5 @@
 @font-face{font-family:"Google Sans";src:url(../fonts/GoogleSans.woff2) format("woff2");font-weight:400 700;font-style:normal;font-display:swap}
+[hidden]{display:none!important}
 
 /* Layout: till screen — scan + cart on the left, a fixed "cash drawer" column on the right (total, discount, pay). Stacks on phones. */
 :root{
