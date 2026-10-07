@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=25';
-import { OWNER_EMAIL } from './config.js?v=25';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=25';
+import * as DB from './db.js?v=26';
+import { OWNER_EMAIL } from './config.js?v=26';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=26';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -508,7 +508,8 @@ $('pfSup').onchange = () => { if ($('pfSup').value === '__new') askNewSupplier(v
 function pfName() {
   const bi = brandIndex($('pfBrand').value); const b = bi >= 0 ? BRANDS[bi][0] : $('pfBrand').value.trim();
   const isNew = !!($('pfBrand').value.trim() && bi < 0);
-  $('pfBrandMsg').textContent = isNew ? 'ยี่ห้อใหม่ จะเพิ่มให้ตอนบันทึก' : ''; $('pfBrandEn').hidden = !isNew;
+  const [, en, , al] = bi >= 0 ? BRANDS[bi] : [];
+  $('pfBrandMsg').textContent = isNew ? 'ยี่ห้อใหม่ จะเพิ่มให้ตอนบันทึก' : bi >= 0 ? [en && 'อังกฤษ: ' + en, al?.length && 'ค้นได้ด้วย: ' + al.slice(0, 4).join(', ')].filter(Boolean).join(' · ') : ''; $('pfBrandEn').hidden = !isNew;
   const size = $('pfSize').value.trim();
   if (PF.nameAuto && PF.mode === 'new') $('pfName').value = [b, $('pfVariant').value.trim(), size ? size + $('pfSizeU').value : ''].filter(Boolean).join(' ');
   $('pfAuto').hidden = PF.nameAuto || PF.mode !== 'new';
@@ -1140,7 +1141,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '25';
+const APP_VERSION = '26';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
