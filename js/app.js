@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=16';
-import { OWNER_EMAIL } from './config.js?v=16';
+import * as DB from './db.js?v=17';
+import { OWNER_EMAIL } from './config.js?v=17';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -350,8 +350,9 @@ function receiptHTML(b) {
 }
 function showReceipt(b, fresh) {
   const s = openModal(`<h2>${fresh ? (b.method === 'cash' ? 'ทอน ' + fmt(b.change) + ' บาท' : 'รับเงินแล้ว') : 'ใบเสร็จ ' + esc(b.id)}</h2>${receiptHTML(b)}
-    <div class="mrow">${fresh ? '' : '<button class="ghost" id="rCopy">คัดลอกเป็นบิลใหม่</button>'}<button class="ghost" id="rPrint">พิมพ์ใบเสร็จ</button><button class="primary" id="rOk">${fresh ? (S.tabs.length > 1 || T().cart.length ? 'กลับไปบิลที่ค้างอยู่ (Enter)' : 'บิลถัดไป (Enter)') : 'ปิด'}</button></div>`);
-  s.querySelector('#rPrint').onclick = () => printReceipt(b);
+    <div class="mrow">${fresh ? '' : '<button class="ghost" id="rCopy">คัดลอกเป็นบิลใหม่</button>'}<button class="ghost" id="rPrint">พิมพ์ใบเสร็จ <kbd>F9</kbd></button><button class="primary" id="rOk">${fresh ? (S.tabs.length > 1 || T().cart.length ? 'กลับไปบิลที่ค้างอยู่ (Enter)' : 'บิลถัดไป (Enter)') : 'ปิด'}</button></div>`);
+  s.querySelector('#rPrint').onclick = () => { printReceipt(b); if (fresh) closeModal(); };
+  s.onkeydown = e => { if (e.key === 'F9') { e.preventDefault(); s.querySelector('#rPrint').click(); } };
   s.querySelector('#rCopy')?.addEventListener('click', () => copyBill(b));
   const ok = s.querySelector('#rOk'); ok.onclick = closeModal; ok.focus();
 }
@@ -362,17 +363,16 @@ function printReceipt(b) {
     @font-face{font-family:"Google Sans";src:url(${fontUrl}) format("woff2");font-weight:400 700}
     html,body{margin:0;padding:0;background:#fff;color:#000}
     /* 58 mm paper prints about 48 mm; keep 3 mm spare on the right so nothing is cut */
-    .receipt{width:44mm;margin:0 0 0 1mm;padding:1mm 0 5mm;font-family:"Google Sans",sans-serif;font-size:12.5px;line-height:1.4;font-weight:600;color:#000}
+    @page{margin:0}
+    .receipt{width:41mm;margin:0;padding:1mm 0 5mm;font-family:"Google Sans",sans-serif;font-size:12px;line-height:1.4;font-weight:600;color:#000}
     .c{text-align:center}.l{display:flex;justify-content:space-between;gap:4px}.l span:last-child,.l b:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
-    .shop{font-size:15px}.small{font-size:10.5px}.big{font-size:15px}
+    .shop{font-size:14px}.small{font-size:10px}.big{font-size:14px}
     hr{border:0;border-top:1px dashed #000;margin:4px 0} b{font-weight:700}
   </style></head><body>${receiptHTML(b)}</body></html>`;
   const f = document.createElement('iframe'); f.className = 'printframe'; document.body.appendChild(f);
   const d = f.contentDocument; d.open(); d.write(html); d.close();
   const go = () => {
     // page exactly as long as the receipt (an "auto" length makes Chrome show a blank, endless strip)
-    const mm = Math.ceil(d.querySelector('.receipt').getBoundingClientRect().height * 25.4 / 96) + 8;
-    const st = d.createElement('style'); st.textContent = `@page{size:58mm ${mm}mm;margin:0}`; d.head.appendChild(st);
     try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('สั่งพิมพ์ไม่ได้'); } setTimeout(() => f.remove(), 60000);
   };
   (d.fonts?.ready || Promise.resolve()).then(() => setTimeout(go, 50));
@@ -722,8 +722,7 @@ $('histFile').onchange = async e => {
 };
 
 /* ---------- print-now toggle on the sell screen ---------- */
-function setAutoPrint(v) { S.autoPrint = v; store.set('autoPrint', v); $('autoPrintSell').checked = v; $('setAutoPrint').checked = v; }
-$('autoPrintSell').onchange = e => { setAutoPrint(e.target.checked); focusQ(); };
+function setAutoPrint(v) { S.autoPrint = v; store.set('autoPrint', v); $('setAutoPrint').checked = v; }
 
 /* ---------- scan view (phone): check price, receive goods, count stock ---------- */
 const SC = { mode: 'check', cam: null, camOn: false, last: '', lastAt: 0, sup: store.get('rcvSup', ''), rcv: store.get('rcvList', []), counted: store.get('counted', { date: '', list: [] }) };

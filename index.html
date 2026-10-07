@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=16">
+<link rel="stylesheet" href="css/app.css?v=17">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -80,7 +80,6 @@
       <button class="pay" data-m="transfer" disabled>โอน QR<small>F3</small></button>
       <button class="pay" data-m="half" disabled>คนละครึ่ง<small>F4</small></button>
     </div>
-    <label class="ptoggle"><input type="checkbox" id="autoPrintSell"> พิมพ์ใบเสร็จทันที</label>
     <div class="actions">
       <button class="ghost" id="holdBtn">เปิดบิลซ้อน <kbd>F6</kbd></button>
       <button class="ghost bad" id="clearBtn">ล้างบิลนี้</button>
@@ -258,6 +257,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=16"></script>
+<script type="module" src="js/app.js?v=17"></script>
 </body>
 </html>
