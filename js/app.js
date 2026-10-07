@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=18';
-import { OWNER_EMAIL } from './config.js?v=18';
+import * as DB from './db.js?v=19';
+import { OWNER_EMAIL } from './config.js?v=19';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1056,3 +1056,18 @@ DB.watchAuth(async user => {
 });
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
+/* tell the user when a newer version has been published, and update with one click */
+const APP_VERSION = '19';
+async function checkUpdate() {
+  try {
+    const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
+    if (v && v !== APP_VERSION && !document.getElementById('updBar')) {
+      document.body.insertAdjacentHTML('afterbegin', '<div id="updBar" class="updbar">มีเวอร์ชันใหม่ <button id="updBtn">อัปเดตเลย</button></div>');
+      document.getElementById('updBtn').onclick = async () => {
+        try { const rs = await navigator.serviceWorker?.getRegistrations?.() || []; await Promise.all(rs.map(r => r.update())); const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } catch (e) { }
+        location.reload();
+      };
+    }
+  } catch (e) { }
+}
+setTimeout(checkUpdate, 3000); setInterval(checkUpdate, 5 * 60 * 1000); addEventListener('focus', checkUpdate);
