@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=13';
-import { OWNER_EMAIL } from './config.js?v=13';
+import * as DB from './db.js?v=14';
+import { OWNER_EMAIL } from './config.js?v=14';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -35,6 +35,13 @@ const today = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d
 const METHOD = { cash: 'เงินสด', transfer: 'โอน', half: 'คนละครึ่ง' };
 const fail = e => { console.error(e); toast(e?.code === 'permission-denied' ? 'บัญชีนี้ไม่มีสิทธิ์บันทึก' : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง'); };
 
+/* barcode typed (or scanned) while the keyboard is on Thai: the number keys give Thai letters */
+const TH_KEYS = { 'ๅ': '1', '/': '2', '-': '3', 'ภ': '4', 'ถ': '5', 'ุ': '6', 'ึ': '7', 'ค': '8', 'ต': '9', 'จ': '0', 'ใ': '.',
+  '๐': '0', '๑': '1', '๒': '2', '๓': '3', '๔': '4', '๕': '5', '๖': '6', '๗': '7', '๘': '8', '๙': '9' };
+const thaiDigits = s => String(s).replace(/./g, c => TH_KEYS[c] ?? c);
+const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
+// returns the digit string if the text is a barcode typed on the Thai layout, otherwise the text unchanged
+function fixCode(v) { if (!hasThai(v)) return v; const c = thaiDigits(v); return /^\d{3,}$/.test(c) ? c : v; }
 function toast(t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; $('toastRoot').replaceChildren(el); setTimeout(() => el.remove(), 2200); }
 const modalOpen = () => !!$('modalRoot').firstChild;
 function focusQ() { if (!modalOpen() && !$('viewSell').hidden && !$('appRoot').hidden) $('q').focus(); }
@@ -50,7 +57,7 @@ function rebuildCatalog() {
   for (const p of LIST) p.key = mkKey(p);
   // keep cart names/prices in step with edits made on other devices
   for (const t of S.tabs) for (const i of t.cart) { const p = P.get(i.code); if (p && !i.custom) { i.price = p.price; i.name = p.name; } }
-  if (appShown) { render(); if (!$('viewBills').hidden) renderBills(); }
+  if (appShown) { if (!$('cart').contains(document.activeElement)) render(); if (!$('viewBills').hidden) renderBills(); }
 }
 let loadErrors = [];
 function onChunk(id, items, fromCache, pending) {
@@ -175,10 +182,11 @@ function notFound(code) {
     addItem(p); toast('เพิ่มสินค้าใหม่แล้ว'); focusQ();
   };
 }
-$('q').addEventListener('input', e => { const v = e.target.value; if (/[^\d\s*\-]/.test(v)) { e.target.value = ''; openFinder(v); } });
+$('q').addEventListener('input', e => { const v = e.target.value; if (/[^\d\s*\-]/.test(thaiDigits(v))) { e.target.value = ''; openFinder(v); } });
 $('q').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return; e.preventDefault();
-  const v = e.target.value.trim(); if (!v) return; e.target.value = '';
+  const raw = e.target.value.trim(); if (!raw) return; e.target.value = '';
+  const v = fixCode(raw); if (v !== raw) toast('แป้นพิมพ์เป็นภาษาไทยอยู่ ระบบอ่านเป็น ' + v + ' ให้แล้ว');
   const cart = T().cart;
   const m = v.match(/^\*(\d+)$/); if (m) { if (cart[0]) { cart[0].qty = Math.max(1, +m[1]); render(); } return; }
   if (v === '-') { const it = cart[0]; if (it) { if (it.qty > 1) { it.qty--; toast('ลดเหลือ ' + it.qty + ' ชิ้น'); } else { cart.shift(); toast('เอารายการล่าสุดออกแล้ว'); } render(); } return; }
@@ -199,7 +207,7 @@ const ANIMALS = [['', 'ทุกสัตว์'], ['cat', 'แมว'], ['dog',
 const F = { q: '', brand: '', type: '', animal: '', sort: 'rank', sel: 0, res: [], added: 0 };
 function filterF() {
   const words = F.q.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
-  if (/^\d{3,}$/.test(F.q.trim())) { const d = F.q.trim(); F.res = LIST.filter(p => p.code.endsWith(d)); if (!F.res.length) F.res = LIST.filter(p => p.code.includes(d)); F.sel = 0; return; }
+  if (/^\d{3,}$/.test(fixCode(F.q.trim()))) { const d = fixCode(F.q.trim()); F.res = LIST.filter(p => p.code.endsWith(d)); if (!F.res.length) F.res = LIST.filter(p => p.code.includes(d)); F.sel = 0; return; }
   const r = LIST.filter(p => (F.brand === '' || p.brand === +F.brand) && (F.type === '' || (F.type === 'big' ? p.big : p.type === F.type)) && (F.animal === '' || p.animal === F.animal) && words.every(w => p.key.includes(w)));
   const cmp = { rank: (a, b) => b.rank - a.rank, name: (a, b) => a.name.localeCompare(b.name, 'th'), price: (a, b) => a.price - b.price, pricedesc: (a, b) => b.price - a.price }[F.sort];
   F.res = r.sort(cmp); F.sel = 0;
@@ -461,7 +469,7 @@ function pfLoad(code) {
   $('pfErr').hidden = true; pfDrawChips(); pfName(); $('pfPrice').focus(); $('pfPrice').select();
 }
 function pfCheckCode() {
-  const c = $('pfCode').value.trim(); if (!c) return;
+  const c = fixCode($('pfCode').value.trim()); if (!c) return; $('pfCode').value = c;
   if (P.has(c) && c !== PF.code) { pfLoad(c); return; }
   if (!P.has(c)) { PF.code = c; PF.editing = false; $('pfTitle').textContent = 'เพิ่มสินค้าใหม่'; $('pfCodeMsg').className = 'hint msg-ok'; $('pfCodeMsg').textContent = 'รหัสนี้ยังไม่มีในร้าน เพิ่มเป็นสินค้าใหม่ได้'; $('pfBrand').focus(); }
 }
@@ -518,7 +526,19 @@ document.addEventListener('keydown', e => {
   if (e.key === 'F6') { e.preventDefault(); holdBill(); return; }
   const map = { F2: 'cash', F3: 'transfer', F4: 'half' }; if (map[e.key]) { e.preventDefault(); openPay(map[e.key]); }
 });
-document.addEventListener('click', e => { if (!e.target.closest('input,button,select,.modal,summary,label')) focusQ(); });
+document.addEventListener('click', e => {
+  const a = document.activeElement;
+  if (a && a !== $('q') && a.matches('input,select,textarea')) return;      // typing elsewhere (e.g. a drag-select ended outside the box)
+  if (String(getSelection?.() || '')) return;
+  if (!e.target.closest('input,button,select,.modal,summary,label')) focusQ();
+});
+// number boxes: select the whole value on click so typing replaces it; Thai-layout digits become numbers
+document.addEventListener('focusin', e => { if (e.target.matches('.qty input, input.price, #disc, .rinputs input, #recv, #chkPrice, #cntQty')) setTimeout(() => { try { e.target.select(); } catch (x) { } }, 0); });
+document.addEventListener('input', e => {
+  const el = e.target; if (!el.matches('[inputmode="numeric"], [inputmode="decimal"]') || el.id === 'q' || el.id === 'scanInput' || el.id === 'pfCode') return;
+  const v = el.value; if (!/[\u0E00-\u0E7F\/\-]/.test(v)) return;   // number boxes never need letters, "/" or "-"
+  const c = thaiDigits(v); if (c !== v) el.value = c;
+});
 let salesDate = null, unsubSales = null;
 function watchToday() {
   const d = today(); if (d === salesDate) return; salesDate = d; unsubSales?.();
@@ -733,6 +753,7 @@ function onScanned(code) {
   handleCode(code);
 }
 function scanHits(v) {
+  v = fixCode(v);
   if (/^\d+$/.test(v)) return v.length >= 3 ? findByDigits(v) : [];
   if (v.length < 2) return [];
   const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
@@ -750,7 +771,7 @@ function drawScanHits(list) {
 $('scanInput').addEventListener('input', e => { const v = e.target.value.trim(); drawScanHits(scanHits(v)); $('scanMsg').textContent = v && /^\d{3,}$/.test(v) && !scanHits(v).length ? 'ไม่พบสินค้าที่บาร์โค้ดลงท้ายด้วย ' + v : ''; });
 $('scanInput').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return; e.preventDefault();
-  const v = e.target.value.trim(); if (!v) return;
+  const v = fixCode(e.target.value.trim()); if (!v) return;
   const hits = scanHits(v);
   if (P.has(v) || hits.length === 1) { e.target.value = ''; $('scanHits').innerHTML = ''; e.target.blur(); return handleCode(P.has(v) ? v : hits[0].code); }
   if (!hits.length && /^\d{8,}$/.test(v)) { e.target.value = ''; return handleCode(v); }
