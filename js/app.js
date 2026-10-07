@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=23';
-import { OWNER_EMAIL } from './config.js?v=23';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=23';
+import * as DB from './db.js?v=24';
+import { OWNER_EMAIL } from './config.js?v=24';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=24';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -531,6 +531,7 @@ function pfSetMode(mode) {
   $('pbDel').disabled = !(has && (mode === 'view' || mode === 'edit'));
   $('pbCancel').disabled = !(mode === 'edit' || mode === 'new');
   $('pbLabel').disabled = !($('pfCode').value.trim());
+  $('pfSizeU').style.visibility = (mode === 'view' && !$('pfSize').value) ? 'hidden' : '';
   $('pfTitle').textContent = { empty: 'ข้อมูลสินค้า', view: 'ข้อมูลสินค้า', edit: 'แก้ไขสินค้า', new: 'เพิ่มสินค้าใหม่' }[mode];
   $('pfState').textContent = { empty: 'เลือกสินค้าจากตาราง หรือกด เพิ่ม', view: 'กด แก้ไข เพื่อเปลี่ยนข้อมูล', edit: 'แก้แล้วกด บันทึก', new: 'ยิงบาร์โค้ด แล้วกรอกข้อมูล' }[mode];
   $('pfState').className = 'pstate ' + mode;
@@ -571,7 +572,7 @@ function pfSave() {
   if (bi < 0 && bv) { const en = $('pfBrandEn').value.trim(); BRANDS.push([bv, en, 0, []]); bi = BRANDS.length - 1; DB.addBrand(bv, en).catch(fail); pfBrandList(); $('pfBrandEn').value = ''; }
   const size = parseFloat($('pfSize').value), su = $('pfSizeU').value; const kg = su === 'kg' ? size : (su === 'g' ? size / 1000 : 0);
   const cost = parseFloat($('pfCost').value), qty = parseInt($('pfQty').value), unit = $('pfUnit').value, sup = $('pfSup').value === '__new' ? '' : $('pfSup').value;
-  const old = P.get(code);
+  const old = P.get(code), old_stock = old?.stock;
   const p = { ...(old || {}), code, name, price, unit, brand: bi, type: $('pfType').value || 'other', animal: $('pfAnimal').value, big: (unit === 'กระสอบ' || kg >= 5 || old?.big) ? 1 : 0,
     cost: cost >= 0 ? cost : (old?.cost || 0), supplier: sup, rank: old?.rank || 0, stock: isNaN(qty) ? old?.stock : qty };
   const by = { by: S.seller, email: S.user?.email || '' };
@@ -580,6 +581,8 @@ function pfSave() {
   p.key = mkKey(p); if (old) Object.assign(old, p); else { P.set(code, p); LIST.push(p); }
   for (const t of S.tabs) for (const i of t.cart) if (i.code === code && !i.custom) { i.price = price; i.name = name; }
   DB.saveProduct(p).catch(fail);
+  if (old && !isNaN(qty) && qty !== old_stock) DB.setStock(code, name, old_stock ?? null, qty, S.user?.email || '').catch(() => { });
+  if (sup && cost > 0) { p.sp = { ...(old?.sp || {}), [sup]: { c: cost, d: today() } }; if (old) old.sp = p.sp; DB.patchProduct(code, { sp: { [sup]: { c: cost, d: today() } } }).catch(() => { }); }
   S.recent = [{ code, isNew: !old, at: new Date().toISOString() }, ...S.recent.filter(r => r.code !== code)].slice(0, 50); store.set('recent', S.recent);
   toast(old ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มสินค้าแล้ว');
   if (!old && $('pfNext').checked) { pfClear(true); drawPList(); return; }
@@ -688,6 +691,11 @@ function pMode(m) {
 // a barcode from the search box, the camera or a table click goes to whatever the page is doing
 function handleCode(code) {
   const p = P.get(code);
+  if (!p && SC.mode === 'info' && PF.mode !== 'edit' && PF.mode !== 'new') {
+    camStop(); pfClear(false); $('pfCode').value = code; pfCheckCode();
+    toast('ไม่พบบาร์โค้ดนี้ ใส่ข้อมูลเพื่อเพิ่มสินค้าใหม่ได้เลย');
+    $('paneInfo').scrollIntoView({ behavior: 'smooth', block: 'start' }); return;
+  }
   if (!p) {
     $('scanMsg').innerHTML = `ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> <button class="ghost" id="scanAdd">เพิ่มเป็นสินค้าใหม่</button>`;
     $('scanAdd').onclick = () => { camStop(); pMode('info'); pfClear(false); $('pfCode').value = code; pfCheckCode(); $('scanMsg').textContent = ''; };
@@ -1131,7 +1139,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '23';
+const APP_VERSION = '24';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

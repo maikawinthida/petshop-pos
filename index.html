@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=23">
+<link rel="stylesheet" href="css/app.css?v=24">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -89,7 +89,7 @@
 </main>
 
 <main id="viewProd" hidden>
-  <div class="pmodes">
+  <div class="pmodes" hidden>
     <div class="seg big" id="pMode">
       <button data-m="info" aria-pressed="true">ข้อมูลสินค้า</button><button data-m="recv" aria-pressed="false">รับของเข้า</button><button data-m="count" aria-pressed="false">นับสต็อก</button>
     </div>
@@ -163,8 +163,8 @@
       <button class="cambtn" id="camBtn"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span id="camLbl">สแกนด้วยกล้อง</span></button>
     </div>
     <div class="bsug" id="pBrandSug" hidden></div>
+    <div class="hint scanmsg" id="scanMsg"></div>
     <div id="cam" class="cam" hidden></div>
-    <div class="hint" id="scanMsg"></div>
     <div class="ptable" id="pTable">
       <table><thead><tr><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>หน่วย</th><th class="r">ราคา</th><th class="r">ต้นทุน</th><th class="r">สต็อก</th></tr></thead><tbody id="pRows"></tbody></table>
     </div>
@@ -246,6 +246,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=23"></script>
+<script type="module" src="js/app.js?v=24"></script>
 </body>
 </html>

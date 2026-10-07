@@ -306,7 +306,7 @@ tr.cancel td:last-child{text-decoration:none}
 .pempty p{margin:0;line-height:1.6}
 .pempty .primary{font-size:18px;padding:14px 28px}
 /* read-only form: hide hint text so empty boxes don't look filled in */
-.pfields:disabled .tin::placeholder{color:transparent}
+.pfields:disabled .tin::placeholder{color:transparent;-webkit-text-fill-color:transparent;opacity:0}
 @media (max-width:700px){.pbtns .pb{flex:1 1 30%;padding:10px 6px}.nextchk{margin-left:0;flex-basis:100%}}
 
 /* brand suggestions */
@@ -321,3 +321,4 @@ tr.cancel td:last-child{text-decoration:none}
 #fbs{padding:0 2px}
 .bsug.drop.qa{margin-top:4px;min-width:260px}
 #addForm .brandbox{display:flex}
+.scanmsg:not(:empty){font-size:15px;font-weight:600;color:var(--ink);padding:6px 2px}
