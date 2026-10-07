@@ -1,6 +1,6 @@
 {
-  "name": "หน้าขาย เพ็ทช็อป",
-  "short_name": "เพ็ทช็อป POS",
+  "name": "หนองเป็ดเพ็ทชอป",
+  "short_name": "หนองเป็ด POS",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

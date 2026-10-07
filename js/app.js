@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=12';
-import { OWNER_EMAIL } from './config.js?v=12';
+import * as DB from './db.js?v=13';
+import { OWNER_EMAIL } from './config.js?v=13';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -11,7 +11,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('pos.' + k); return v ? JSON.parse(v) : d } catch (e) { return d } },
   set(k, v) { try { localStorage.setItem('pos.' + k, JSON.stringify(v)) } catch (e) { } }
 };
-const DEFAULT_SETTINGS = { shop: 'ร้านเพ็ทช็อป', pp: '', sellers: ['พ่อ', 'ไหม'], suppliers: ['ชินจิ', 'ฟู้ดอินโนว่า', 'แอลเคมาร์เก็ตติ้ง', 'เพอร์เฟคคอมพาเนียน'] };
+const DEFAULT_SETTINGS = { shop: 'หนองเป็ดเพ็ทชอป', pp: '', sellers: ['พ่อ', 'ไหม'], suppliers: ['ชินจิ', 'ฟู้ดอินโนว่า', 'แอลเคมาร์เก็ตติ้ง', 'เพอร์เฟคคอมพาเนียน'] };
 const S = {
   user: null, isOwner: false,
   settings: { ...DEFAULT_SETTINGS, ...store.get('settingsCache', {}) },
@@ -400,7 +400,7 @@ function fillSettings() {
 }
 const splitList = v => v.split(',').map(s => s.trim()).filter(Boolean);
 function saveSet() {
-  const s = { ...S.settings, shop: $('setShop').value.trim() || 'ร้านเพ็ทช็อป', pp: $('setPP').value.trim(), suppliers: splitList($('setSups').value) };
+  const s = { ...S.settings, shop: $('setShop').value.trim() || 'หนองเป็ดเพ็ทชอป', pp: $('setPP').value.trim(), suppliers: splitList($('setSups').value) };
   S.settings = s; store.set('settingsCache', s); DB.saveMeta('settings', s).catch(fail); renderSellers();
 }
 ['setShop', 'setPP', 'setSups'].forEach(id => $(id).onchange = () => { saveSet(); pfDrawChips(); toast('บันทึกแล้ว'); });
@@ -890,7 +890,8 @@ function startData() {
   gate('กำลังโหลดข้อมูลสินค้า…');
   unsubs.forEach(u => u()); unsubs = [];
   unsubs.push(DB.watchMeta('brands', d => { const list = d?.list || []; BRANDS = list.map(b => [b.th, b.en || '', 0]); rebuildCatalog(); pfBrandList(); }));
-  unsubs.push(DB.watchMeta('settings', d => { if (d) { S.settings = { ...DEFAULT_SETTINGS, ...d }; store.set('settingsCache', S.settings); } renderSellers(); pfDrawChips(); fillSettings(); }));
+  unsubs.push(DB.watchMeta('settings', d => { if (d) { S.settings = { ...DEFAULT_SETTINGS, ...d }; store.set('settingsCache', S.settings); }
+    if (d && (!d.shop || d.shop === 'ร้านเพ็ทช็อป')) DB.saveMeta('settings', { shop: DEFAULT_SETTINGS.shop }).catch(() => { }); renderSellers(); pfDrawChips(); fillSettings(); }));
   if (S.isOwner) unsubs.push(DB.watchMeta('staff', d => { S.staff = d?.emails || []; fillSettings(); }, () => { }));
   unsubs.push(DB.watchCatalog(onChunk, e => { console.error(e); loadErrors.push(e.code || e.message); if (e.code === 'permission-denied') noAccess(); }));
   clearTimeout(startData.t);
