@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=20';
-import { OWNER_EMAIL } from './config.js?v=20';
+import * as DB from './db.js?v=21';
+import { OWNER_EMAIL } from './config.js?v=21';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -484,6 +484,7 @@ function randomCode() { for (; ;) { let d = '20'; for (let i = 0; i < 10; i++) d
 function pfSetMode(mode) {
   PF.mode = mode;
   $('pfFields').disabled = !(mode === 'edit' || mode === 'new');
+  $('pfFields').hidden = mode === 'empty'; $('pfEmpty').hidden = mode !== 'empty';
   $('pfCode').readOnly = mode === 'edit';
   $('pfGen').hidden = mode !== 'new';
   const has = !!(PF.code && P.has(PF.code));
@@ -576,7 +577,7 @@ $('pfSizeU').addEventListener('change', pfName);
 $('pfName').addEventListener('input', () => { PF.nameAuto = false; $('pfAuto').hidden = PF.mode !== 'new'; });
 $('pfAuto').onclick = () => { PF.nameAuto = true; pfName(); };
 $('pfPrice').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pfSave(); } });
-$('pbAdd').onclick = () => pfClear(false);
+$('pbAdd').onclick = () => pfClear(false); $('pfEmptyAdd').onclick = () => pfClear(false);
 $('pbEdit').onclick = () => { if (PF.mode !== 'view') return; pfSetMode('edit'); $('pfPrice').focus(); $('pfPrice').select(); };
 $('pbSave').onclick = pfSave; $('pbDel').onclick = pfDelete; $('pbCancel').onclick = pfCancel;
 $('pbLabel').onclick = () => { const code = $('pfCode').value.trim(); if (!code) return; openLabel(P.get(code) || { code, name: $('pfName').value.trim(), price: parseFloat($('pfPrice').value) || 0 }); };
@@ -1057,7 +1058,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '20';
+const APP_VERSION = '21';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

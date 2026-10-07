@@ -264,7 +264,7 @@ tr.cancel td:last-child{text-decoration:none}
 .pinfo{display:grid;gap:6px;font-size:14px;background:var(--bg);border-radius:8px;padding:8px 10px}
 .suptag,.histtag{display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:13px}
 .suptag.best{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700}
-.pbtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:12px}
+.pbtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px}
 .pb{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 18px;font-weight:700;font-size:15px}
 .pb:disabled{opacity:.35;cursor:not-allowed}
 .pb.add{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -301,3 +301,10 @@ tr.cancel td:last-child{text-decoration:none}
 .cambtn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--accent);color:#fff;border:0;border-radius:var(--r);padding:10px 18px;font-weight:700;font-size:16px;white-space:nowrap}
 .cambtn:disabled{opacity:.6}
 @media (max-width:700px){.psearch .cambtn{flex:1 1 100%;padding:14px;font-size:18px}.psearch select{flex:1 1 100%}}
+
+.pempty{text-align:center;padding:18px 8px;display:grid;gap:12px;justify-items:center;color:var(--muted)}
+.pempty p{margin:0;line-height:1.6}
+.pempty .primary{font-size:18px;padding:14px 28px}
+/* read-only form: hide hint text so empty boxes don't look filled in */
+.pfields:disabled .tin::placeholder{color:transparent}
+@media (max-width:700px){.pbtns .pb{flex:1 1 30%;padding:10px 6px}.nextchk{margin-left:0;flex-basis:100%}}
