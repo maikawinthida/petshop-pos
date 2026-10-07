@@ -1,5 +1,5 @@
-import * as DB from './db.js?v=17';
-import { OWNER_EMAIL } from './config.js?v=17';
+import * as DB from './db.js?v=18';
+import { OWNER_EMAIL } from './config.js?v=18';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -57,7 +57,10 @@ function rebuildCatalog() {
   for (const p of LIST) p.key = mkKey(p);
   // keep cart names/prices in step with edits made on other devices
   for (const t of S.tabs) for (const i of t.cart) { const p = P.get(i.code); if (p && !i.custom) { i.price = p.price; i.name = p.name; } }
-  if (appShown) { if (!$('cart').contains(document.activeElement)) render(); if (!$('viewBills').hidden) renderBills(); }
+  if (appShown) {
+    if (!$('cart').contains(document.activeElement)) render(); if (!$('viewBills').hidden) renderBills();
+    if (!$('viewProd').hidden && PF.mode !== 'edit' && PF.mode !== 'new') { drawPList(); if (PF.mode === 'view' && P.has(PF.code)) pfFill(P.get(PF.code)); }
+  }
 }
 let loadErrors = [];
 function onChunk(id, items, fromCache, pending) {
@@ -98,10 +101,14 @@ function askPrice(it, newPrice) {
 }
 
 /* ---------- totals & render ---------- */
+const lineDisc = i => Math.min(i.ld || 0, i.price * i.qty);          // baht off this line
+const lineNet = i => Math.round((i.price * i.qty - lineDisc(i)) * 100) / 100;
 function totals(t = T()) {
   const sub = t.cart.reduce((s, i) => s + i.price * i.qty, 0);
-  let d = t.discMode === 'pct' ? sub * Math.min(t.disc, 100) / 100 : Math.min(t.disc, sub); d = Math.round(d * 100) / 100;
-  return { sub, disc: d, net: Math.round((sub - d) * 100) / 100, count: t.cart.reduce((s, i) => s + i.qty, 0) };
+  const ldisc = Math.round(t.cart.reduce((s, i) => s + lineDisc(i), 0) * 100) / 100;
+  const base = sub - ldisc;
+  let d = t.discMode === 'pct' ? base * Math.min(t.disc, 100) / 100 : Math.min(t.disc, base); d = Math.round(d * 100) / 100;
+  return { sub, ldisc, disc: d, net: Math.round((base - d) * 100) / 100, count: t.cart.reduce((s, i) => s + i.qty, 0) };
 }
 let lastAdded = null;
 function renderTabs() {
@@ -119,15 +126,19 @@ function renderCart() {
     const tr = document.createElement('tr'); if (it.code === lastAdded) tr.className = 'flash';
     tr.innerHTML = `<td class="num">${idx + 1}</td>
       <td style="min-width:180px">${esc(it.name)}<div class="hint num">${esc(it.code)} · ${esc(it.unit)}${it.custom ? ' <span class="changed">ราคาพิเศษบิลนี้</span>' : ''}</div></td>
-      <td><span class="qty"><button aria-label="ลด">−</button><input class="num" value="${it.qty}" inputmode="numeric" aria-label="จำนวน"><button aria-label="เพิ่ม">+</button></span></td>
+      <td style="white-space:nowrap"><span class="qty"><button aria-label="ลด">−</button><input class="num" value="${it.qty}" inputmode="numeric" aria-label="จำนวน"><button aria-label="เพิ่ม">+</button></span>
+        <label class="ld"><span>ลด</span><input class="num" value="${it.ld || ''}" placeholder="0" inputmode="decimal" aria-label="ส่วนลดรายการนี้ (บาท)"></label></td>
       <td class="r"><input class="price" value="${it.price}" inputmode="decimal" aria-label="ราคา"></td>
-      <td class="r num">${fmt(it.price * it.qty)}</td>
+      <td class="r num">${lineDisc(it) ? `<s class="was">${fmt(it.price * it.qty)}</s><br>` : ''}${fmt(lineNet(it))}</td>
       <td><button class="del" aria-label="ลบรายการ">×</button></td>`;
     const [minus, plus] = tr.querySelectorAll('.qty button'); const qi = tr.querySelector('.qty input');
     minus.onclick = () => { if (it.qty > 1) it.qty--; else cart.splice(idx, 1); render(); };
     plus.onclick = () => { it.qty++; render(); };
     qi.onchange = () => { it.qty = Math.max(1, parseInt(qi.value) || 1); render(); focusQ(); };
     qi.onkeydown = e => { if (e.key === 'Enter') qi.blur(); };
+    const li = tr.querySelector('.ld input');
+    li.onchange = () => { const v = parseFloat(li.value); it.ld = v > 0 ? Math.min(Math.round(v * 100) / 100, it.price * it.qty) : 0; render(); focusQ(); };
+    li.onkeydown = e => { if (e.key === 'Enter') li.blur(); };
     const pi = tr.querySelector('.price');
     pi.onkeydown = e => { if (e.key === 'Enter') pi.blur(); };
     pi.onchange = () => { const v = parseFloat(pi.value); if (!(v >= 0) || v === it.price) { pi.value = it.price; return; } askPrice(it, Math.round(v * 100) / 100); };
@@ -140,6 +151,7 @@ function render() {
   renderTabs(); renderCart();
   const t = totals(), tab = T();
   $('subtotal').textContent = fmt(t.sub); $('discAmt').textContent = fmt(t.disc);
+  $('ldRow').hidden = !t.ldisc; $('ldAmt').textContent = '-' + fmt(t.ldisc);
   $('netBig').textContent = fmt0(t.net); $('itemCount').textContent = t.count + ' ชิ้น';
   $('ledLabel').textContent = S.tabs.length > 1 ? `ยอดสุทธิ บิล ${S.cur + 1}` : 'ยอดสุทธิ';
   if (document.activeElement !== $('disc')) $('disc').value = tab.disc;
@@ -330,20 +342,19 @@ function newBillId() {
 }
 function finish(method, recv) {
   const t = totals(); const d = new Date();
-  const items = T().cart.map(i => { const p = P.get(i.code); return { code: i.code, name: i.name, unit: i.unit || '', price: i.price, qty: i.qty, cost: p?.cost || 0, known: !!p, custom: !!i.custom }; });
-  const bill = { id: newBillId(), date: today(), time: pad(d.getHours()) + ':' + pad(d.getMinutes()), ts: d.getTime(), seller: S.seller, method, items, sub: t.sub, disc: t.disc, net: t.net, recv, change: Math.round((recv - t.net) * 100) / 100, count: t.count, cancelled: false, email: S.user?.email || '' };
+  const items = T().cart.map(i => { const p = P.get(i.code); return { code: i.code, name: i.name, unit: i.unit || '', price: i.price, qty: i.qty, ld: lineDisc(i), cost: p?.cost || 0, known: !!p, custom: !!i.custom }; });
+  const bill = { id: newBillId(), date: today(), time: pad(d.getHours()) + ':' + pad(d.getMinutes()), ts: d.getTime(), seller: S.seller, method, items, sub: t.sub, ldisc: t.ldisc, disc: t.disc, net: t.net, recv, change: Math.round((recv - t.net) * 100) / 100, count: t.count, cancelled: false, email: S.user?.email || '' };
   DB.saveSale(bill).catch(fail);
   closeCurrentTab(); showReceipt(bill, true);
-  if (S.autoPrint) printReceipt(bill);
 }
 function receiptHTML(b) {
   const [y, m, d] = b.date.split('-'); const when = `${d}/${m}/${+y + 543} ${b.time}`;
   const money = n => fmt0(Math.round(n * 100) / 100);
   return `<div class="receipt"><div class="c"><b class="shop">${esc(S.settings.shop)}</b><br>ใบเสร็จรับเงิน</div><hr>
   <div>วันที่ ${when}</div><div class="small">เลขที่ ${esc(b.id)}</div><hr>
-  ${b.items.map(i => `<div>${esc(i.name)}</div><div class="l"><span>&nbsp;${i.qty} x ${money(i.price)}</span><span>${money(i.qty * i.price)}</span></div>`).join('')}<hr>
-  <div class="l"><span>รวม ${b.count} ชิ้น</span><span>${money(b.sub)}</span></div>
-  ${b.disc ? `<div class="l"><span>ส่วนลด</span><span>-${money(b.disc)}</span></div>` : ''}
+  ${b.items.map(i => `<div>${esc(i.name)}</div><div class="l"><span>&nbsp;${i.qty} x ${money(i.price)}</span><span>${money(i.qty * i.price)}</span></div>${i.ld ? `<div class="l"><span>&nbsp;ส่วนลด</span><span>-${money(i.ld)}</span></div>` : ''}`).join('')}<hr>
+  <div class="l"><span>รวม ${b.count} ชิ้น</span><span>${money(b.sub - (b.ldisc || 0))}</span></div>
+  ${b.disc ? `<div class="l"><span>ส่วนลดท้ายบิล</span><span>-${money(b.disc)}</span></div>` : ''}
   <div class="l big"><b>สุทธิ</b><b>${money(b.net)}</b></div>
   <div class="l"><span>${METHOD[b.method]}</span><span>${money(b.recv)}</span></div>
   ${b.method === 'cash' ? `<div class="l"><span>เงินทอน</span><span>${money(b.change)}</span></div>` : ''}<hr><div class="c">ขอบคุณที่อุดหนุนค่ะ</div></div>`;
@@ -403,17 +414,16 @@ function renderBills() {
   $('emptyPrices').hidden = S.priceLog.length > 0;
 }
 function tab(w) {
-  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewScan', 'tabScan', 'scan'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
-  if (w !== 'scan' && typeof SC !== 'undefined' && SC.camOn) camStop();
-  if (w === 'scan') scanMode(SC.mode);
+  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
+  if (w !== 'prod' && typeof SC !== 'undefined' && SC.camOn) camStop();
   if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else if (w === 'report') loadReport(); else focusQ();
 }
-$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report'); $('tabScan').onclick = () => tab('scan');
+$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report');
 
 /* ---------- settings ---------- */
 function fillSettings() {
   $('setShop').value = S.settings.shop; $('setPP').value = S.settings.pp || ''; $('setSups').value = (S.settings.suppliers || []).join(', ');
-  $('setAutoPrint').checked = !!S.autoPrint; $('setStaff').value = S.staff.join(', ');
+  $('setStaff').value = S.staff.join(', ');
 }
 const splitList = v => v.split(',').map(s => s.trim()).filter(Boolean);
 function saveSet() {
@@ -421,110 +431,362 @@ function saveSet() {
   S.settings = s; store.set('settingsCache', s); DB.saveMeta('settings', s).catch(fail); renderSellers();
 }
 ['setShop', 'setPP', 'setSups'].forEach(id => $(id).onchange = () => { saveSet(); pfDrawChips(); toast('บันทึกแล้ว'); });
-$('setAutoPrint').onchange = e => { setAutoPrint(e.target.checked); toast(S.autoPrint ? 'เครื่องนี้จะพิมพ์ใบเสร็จอัตโนมัติ' : 'ปิดพิมพ์อัตโนมัติที่เครื่องนี้แล้ว'); };
 $('setStaff').onchange = e => { const emails = splitList(e.target.value).map(x => x.toLowerCase()); DB.saveMeta('staff', { emails }).then(() => toast('บันทึกรายชื่อแล้ว')).catch(fail); };
 $('logoutBtn').onclick = () => confirmBox('ออกจากระบบเครื่องนี้?', 'ออกจากระบบ', () => DB.logout());
 
-/* ---------- product form ---------- */
+/* ---------- product page: form on top (add / edit / save / delete / cancel / print label), product table below ---------- */
 const PTYPES = TYPES.filter(([v]) => v && v !== 'big');
 const PANIMALS = ANIMALS.filter(([v]) => v);
 const SIZEU = ['g', 'kg', 'ml', 'L', 'ชิ้น'];
 const UNITS = ['ถุง', 'กระสอบ', 'ซอง', 'กระป๋อง', 'ถาด', 'ชิ้น', 'ขวด', 'แพ็ค', 'อัน', 'กระปุก'];
-const PF = { code: '', editing: false, animal: '', type: '', sizeU: 'g', unit: '', sup: '', nameAuto: true };
+// mode: empty (nothing chosen) · view (row chosen, read-only) · edit (changing a product) · new (adding one)
+const PF = { code: '', mode: 'empty', nameAuto: true };
 const supList = () => S.settings.suppliers || [];
 function brandIndex(v) { const n = norm(v); if (!n) return -1; return BRANDS.findIndex(b => norm(b[0]) === n || (b[1] && norm(b[1]) === n)); }
-function pfChips(id, list, key) {
-  const box = $(id); box.innerHTML = '';
-  for (const it of list) {
-    const [v, l] = Array.isArray(it) ? it : [it, it]; const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = l; b.setAttribute('aria-pressed', PF[key] === v);
-    b.onclick = () => { PF[key] = PF[key] === v && key !== 'sizeU' ? '' : v; pfChips(id, list, key); pfName(); }; box.appendChild(b);
-  }
+const opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(l)}</option>`;
+function fillSelect(id, list, value, blank) {
+  const items = list.map(x => Array.isArray(x) ? x : [x, x]);
+  if (value && !items.some(([v]) => v === value)) items.push([value, value]);
+  $(id).innerHTML = (blank ? opt('', blank, !value) : '') + items.map(([v, l]) => opt(v, l, v === value)).join('');
 }
-function pfDrawChips() {
-  pfChips('pfAnimal', PANIMALS, 'animal'); pfChips('pfType', PTYPES, 'type'); pfChips('pfSizeU', SIZEU, 'sizeU'); pfChips('pfUnit', UNITS, 'unit');
-  const sl = supList().slice(); if (PF.sup && !sl.includes(PF.sup)) sl.push(PF.sup); pfChips('pfSup', sl, 'sup');
-  const a = document.createElement('button'); a.type = 'button'; a.className = 'chip add'; a.textContent = '+ ร้านอื่น'; a.onclick = () => { $('pfSupNewBox').hidden = false; $('pfSupNew').focus(); }; $('pfSup').appendChild(a);
+function pfDrawChips(vals = {}) {
+  const cur = id => vals[id] ?? $(id).value;
+  fillSelect('pfSizeU', SIZEU, cur('pfSizeU') || 'g');
+  fillSelect('pfUnit', UNITS, cur('pfUnit'), '— เลือก —');
+  fillSelect('pfAnimal', PANIMALS, cur('pfAnimal'), '— ไม่ระบุ —');
+  fillSelect('pfType', PTYPES, cur('pfType'), '— ไม่ระบุ —');
+  fillSelect('pfSup', supList(), cur('pfSup'), '— ไม่ระบุ —');
+  $('pfSup').insertAdjacentHTML('beforeend', opt('__new', '+ เพิ่มร้านใหม่…'));
 }
 function addSupplier(name) {
   name = name.trim(); if (!name) return;
   if (!supList().includes(name)) { S.settings.suppliers = [...supList(), name]; store.set('settingsCache', S.settings); DB.saveMeta('settings', { suppliers: S.settings.suppliers }).catch(fail); $('setSups').value = S.settings.suppliers.join(', '); }
-  PF.sup = name; $('pfSupNew').value = ''; $('pfSupNewBox').hidden = true; pfDrawChips();
 }
+function askNewSupplier(done) {
+  const s = openModal(`<h2>เพิ่มร้านที่รับของ</h2><input class="tin" id="newSup" placeholder="ชื่อร้าน"><div class="mrow"><button class="ghost" id="nsNo">ยกเลิก</button><button class="primary" id="nsOk">เพิ่ม</button></div>`);
+  const inp = s.querySelector('#newSup'); inp.focus();
+  const ok = () => { const v = inp.value.trim(); closeModal(); if (v) { addSupplier(v); done(v); } else done(''); };
+  s.querySelector('#nsNo').onclick = () => { closeModal(); done(''); }; s.querySelector('#nsOk').onclick = ok; inp.onkeydown = e => { if (e.key === 'Enter') ok(); };
+}
+$('pfSup').onchange = () => { if ($('pfSup').value === '__new') askNewSupplier(v => pfDrawChips({ pfSup: v })); };
 function pfName() {
   const bi = brandIndex($('pfBrand').value); const b = bi >= 0 ? BRANDS[bi][0] : $('pfBrand').value.trim();
-  $('pfBrandMsg').textContent = $('pfBrand').value.trim() && bi < 0 ? 'ยี่ห้อใหม่ จะเพิ่มเข้ารายการให้ตอนบันทึก' : '';
+  $('pfBrandMsg').textContent = $('pfBrand').value.trim() && bi < 0 ? 'ยี่ห้อใหม่ จะเพิ่มให้ตอนบันทึก' : '';
   const size = $('pfSize').value.trim();
-  if (PF.nameAuto) $('pfName').value = [b, $('pfVariant').value.trim(), size ? size + PF.sizeU : ''].filter(Boolean).join(' ');
-  $('pfAuto').hidden = PF.nameAuto;
+  if (PF.nameAuto && PF.mode === 'new') $('pfName').value = [b, $('pfVariant').value.trim(), size ? size + $('pfSizeU').value : ''].filter(Boolean).join(' ');
+  $('pfAuto').hidden = PF.nameAuto || PF.mode !== 'new';
   const pr = parseFloat($('pfPrice').value), co = parseFloat($('pfCost').value);
   $('pfMargin').textContent = pr > 0 && co > 0 ? `กำไรต่อหน่วย ${fmt0(pr - co)} บาท (${Math.round((pr - co) / pr * 100)}%)` : '';
 }
 function eanCheck(d12) { let s = 0; for (let i = 0; i < 12; i++) s += (+d12[i]) * (i % 2 ? 3 : 1); return (10 - s % 10) % 10; }
 function randomCode() { for (; ;) { let d = '20'; for (let i = 0; i < 10; i++) d += Math.floor(Math.random() * 10); d += eanCheck(d); if (!P.has(d)) return d; } }
-function pfClear(keep) {
-  const kept = keep ? { brand: $('pfBrand').value, size: $('pfSize').value, price: $('pfPrice').value, cost: $('pfCost').value } : {};
-  Object.assign(PF, { code: '', editing: false, nameAuto: true }); if (!keep) Object.assign(PF, { animal: '', type: '', sizeU: 'g', unit: '', sup: '' });
-  $('pfCode').value = ''; $('pfVariant').value = ''; $('pfQty').value = ''; $('pfName').value = '';
-  $('pfBrand').value = kept.brand || ''; $('pfSize').value = kept.size || ''; $('pfPrice').value = kept.price || ''; $('pfCost').value = kept.cost || '';
-  $('pfTitle').textContent = 'เพิ่มสินค้าใหม่'; $('pfCodeMsg').textContent = ''; $('pfErr').hidden = true; $('pfGenBox').hidden = true;
-  pfDrawChips(); pfName(); $('pfCode').focus();
+
+function pfSetMode(mode) {
+  PF.mode = mode;
+  $('pfFields').disabled = !(mode === 'edit' || mode === 'new');
+  $('pfCode').readOnly = mode === 'edit';
+  $('pfGen').hidden = mode !== 'new';
+  const has = !!(PF.code && P.has(PF.code));
+  $('pbAdd').disabled = mode === 'edit';
+  $('pbEdit').disabled = mode !== 'view';
+  $('pbSave').disabled = !(mode === 'edit' || mode === 'new');
+  $('pbDel').disabled = !(has && (mode === 'view' || mode === 'edit'));
+  $('pbCancel').disabled = !(mode === 'edit' || mode === 'new');
+  $('pbLabel').disabled = !($('pfCode').value.trim());
+  $('pfTitle').textContent = { empty: 'ข้อมูลสินค้า', view: 'ข้อมูลสินค้า', edit: 'แก้ไขสินค้า', new: 'เพิ่มสินค้าใหม่' }[mode];
+  $('pfState').textContent = { empty: 'เลือกสินค้าจากตาราง หรือกด เพิ่ม', view: 'กด แก้ไข เพื่อเปลี่ยนข้อมูล', edit: 'แก้แล้วกด บันทึก', new: 'ยิงบาร์โค้ด แล้วกรอกข้อมูล' }[mode];
+  $('pfState').className = 'pstate ' + mode;
+  $('pfAuto').hidden = PF.nameAuto || mode !== 'new';
+  if (mode !== 'view') $('pfInfo').hidden = true;
 }
-function pfLoad(code) {
+function pfFill(p) {
+  $('pfCode').value = p?.code || ''; $('pfName').value = p?.name || '';
+  $('pfBrand').value = p && p.brand >= 0 && BRANDS[p.brand] ? BRANDS[p.brand][0] : ''; $('pfVariant').value = ''; $('pfSize').value = '';
+  $('pfPrice').value = p?.price ?? ''; $('pfCost').value = p?.cost || ''; $('pfQty').value = p?.stock ?? '';
+  pfDrawChips({ pfUnit: p?.unit || '', pfAnimal: p?.animal || '', pfType: p?.type && p.type !== 'other' ? p.type : '', pfSup: p?.supplier || '', pfSizeU: 'g' });
+  $('pfCodeMsg').textContent = ''; $('pfErr').hidden = true; pfName();
+}
+function pfLoad(code) {   // show a product read-only
   const p = P.get(code); if (!p) return;
-  Object.assign(PF, { code, editing: true, animal: p.animal || '', type: p.type || '', unit: p.unit || '', sup: p.supplier || '', nameAuto: false });
-  $('pfCode').value = code; $('pfBrand').value = p.brand >= 0 && BRANDS[p.brand] ? BRANDS[p.brand][0] : ''; $('pfVariant').value = ''; $('pfSize').value = '';
-  $('pfName').value = p.name; $('pfPrice').value = p.price; $('pfCost').value = p.cost || ''; $('pfQty').value = p.stock ?? '';
-  $('pfTitle').textContent = 'แก้ไขสินค้า'; $('pfCodeMsg').className = 'hint msg-edit'; $('pfCodeMsg').textContent = 'มีสินค้านี้อยู่แล้ว กำลังแก้ไขตัวเดิม';
-  $('pfErr').hidden = true; pfDrawChips(); pfName(); $('pfPrice').focus(); $('pfPrice').select();
+  PF.code = code; PF.nameAuto = false; pfFill(p); pfSetMode('view'); pfShowInfo(p); markRow(code);
+}
+function pfClear(keep) {  // start a new product
+  const kept = keep ? { brand: $('pfBrand').value, size: $('pfSize').value, price: $('pfPrice').value, cost: $('pfCost').value,
+    pfUnit: $('pfUnit').value, pfAnimal: $('pfAnimal').value, pfType: $('pfType').value, pfSup: $('pfSup').value, pfSizeU: $('pfSizeU').value } : null;
+  PF.code = ''; PF.nameAuto = true; pfFill(null);
+  if (kept) { $('pfBrand').value = kept.brand; $('pfSize').value = kept.size; $('pfPrice').value = kept.price; $('pfCost').value = kept.cost; pfDrawChips(kept); }
+  pfSetMode('new'); markRow(''); pfName(); $('pfGenBox').hidden = true; $('pfCode').focus();
 }
 function pfCheckCode() {
+  if (PF.mode !== 'new') return;
   const c = fixCode($('pfCode').value.trim()); if (!c) return; $('pfCode').value = c;
-  if (P.has(c) && c !== PF.code) { pfLoad(c); return; }
-  if (!P.has(c)) { PF.code = c; PF.editing = false; $('pfTitle').textContent = 'เพิ่มสินค้าใหม่'; $('pfCodeMsg').className = 'hint msg-ok'; $('pfCodeMsg').textContent = 'รหัสนี้ยังไม่มีในร้าน เพิ่มเป็นสินค้าใหม่ได้'; $('pfBrand').focus(); }
+  if (P.has(c)) { toast('มีสินค้านี้อยู่แล้ว เปิดข้อมูลให้'); pfLoad(c); return; }
+  PF.code = c; $('pfCodeMsg').className = 'hint msg-ok'; $('pfCodeMsg').textContent = 'รหัสใหม่ เพิ่มเป็นสินค้าใหม่ได้'; $('pbLabel').disabled = false; $('pfBrand').focus();
 }
-function pfSave(next) {
-  pfCheckCode();
+function pfSave() {
+  if (PF.mode === 'new') pfCheckCode(); if (PF.mode === 'view') return;
   const code = $('pfCode').value.trim(), name = $('pfName').value.trim(), price = parseFloat($('pfPrice').value);
   const errs = []; if (!code) errs.push('ยังไม่มีบาร์โค้ด (ยิง หรือกด "เพิ่มรหัสสินค้า")'); if (!name) errs.push('ยังไม่มีชื่อสินค้า'); if (!(price >= 0)) errs.push('ยังไม่ได้ใส่ราคาขาย');
   if (errs.length) { $('pfErr').textContent = errs.join(' · '); $('pfErr').hidden = false; return; }
   let bi = brandIndex($('pfBrand').value); const bv = $('pfBrand').value.trim();
   if (bi < 0 && bv) { BRANDS.push([bv, '', 0]); bi = BRANDS.length - 1; DB.addBrand(bv).catch(fail); pfBrandList(); }
-  const size = parseFloat($('pfSize').value); const kg = PF.sizeU === 'kg' ? size : (PF.sizeU === 'g' ? size / 1000 : 0);
-  const cost = parseFloat($('pfCost').value), qty = parseInt($('pfQty').value);
+  const size = parseFloat($('pfSize').value), su = $('pfSizeU').value; const kg = su === 'kg' ? size : (su === 'g' ? size / 1000 : 0);
+  const cost = parseFloat($('pfCost').value), qty = parseInt($('pfQty').value), unit = $('pfUnit').value, sup = $('pfSup').value === '__new' ? '' : $('pfSup').value;
   const old = P.get(code);
-  const p = { code, name, price, unit: PF.unit, brand: bi, type: PF.type || 'other', animal: PF.animal, big: (PF.unit === 'กระสอบ' || kg >= 5) ? 1 : 0, cost: cost >= 0 ? cost : (old?.cost || 0), supplier: PF.sup, rank: old?.rank || 0, stock: isNaN(qty) ? old?.stock : qty };
+  const p = { ...(old || {}), code, name, price, unit, brand: bi, type: $('pfType').value || 'other', animal: $('pfAnimal').value, big: (unit === 'กระสอบ' || kg >= 5 || old?.big) ? 1 : 0,
+    cost: cost >= 0 ? cost : (old?.cost || 0), supplier: sup, rank: old?.rank || 0, stock: isNaN(qty) ? old?.stock : qty };
   const by = { by: S.seller, email: S.user?.email || '' };
   if (old && old.price !== price) DB.logPrice({ code, name, kind: 'price', old: old.price, new: price, ...by }).catch(() => { });
-  if (old && cost >= 0 && (old.cost || 0) !== cost) DB.logPrice({ code, name, kind: 'cost', old: old.cost || 0, new: cost, supplier: PF.sup, ...by }).catch(() => { });
-  p.key = mkKey(p); P.set(code, p); if (!old) LIST.push(p); else Object.assign(old, p);
+  if (old && cost >= 0 && (old.cost || 0) !== cost) DB.logPrice({ code, name, kind: 'cost', old: old.cost || 0, new: cost, supplier: sup, ...by }).catch(() => { });
+  p.key = mkKey(p); if (old) Object.assign(old, p); else { P.set(code, p); LIST.push(p); }
+  for (const t of S.tabs) for (const i of t.cart) if (i.code === code && !i.custom) { i.price = price; i.name = name; }
   DB.saveProduct(p).catch(fail);
   S.recent = [{ code, isNew: !old, at: new Date().toISOString() }, ...S.recent.filter(r => r.code !== code)].slice(0, 50); store.set('recent', S.recent);
-  renderRecent(); toast(old ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มสินค้าแล้ว');
-  pfClear(!!next);
+  toast(old ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มสินค้าแล้ว');
+  if (!old && $('pfNext').checked) { pfClear(true); drawPList(); return; }
+  drawPList(); pfLoad(code);
 }
-function renderRecent() {
-  const box = $('recentList'); box.innerHTML = '';
-  for (const r of S.recent) {
-    const p = P.get(r.code); if (!p) continue; const b = document.createElement('button'); b.className = 'recent';
-    b.innerHTML = `<span class="nm">${esc(p.name)}<div class="hint num">${esc(p.code)} · ${r.isNew ? 'เพิ่มใหม่' : 'แก้ไข'}</div></span><span class="num">${fmt0(p.price)} ฿</span>`;
-    b.onclick = () => pfLoad(r.code); box.appendChild(b);
-  }
-  $('emptyRecent').hidden = S.recent.length > 0; $('recentCount').textContent = S.recent.length ? `(${S.recent.length})` : '';
+function pfDelete() {
+  const p = P.get(PF.code); if (!p) return;
+  confirmBox(`ลบสินค้า "${p.name}" ออกจากระบบ?`, 'ลบสินค้า', () => {
+    DB.deleteProduct(p.code).catch(fail);
+    P.delete(p.code); LIST = LIST.filter(x => x.code !== p.code); S.recent = S.recent.filter(r => r.code !== p.code); store.set('recent', S.recent);
+    PF.code = ''; pfFill(null); pfSetMode('empty'); drawPList(); toast('ลบสินค้าแล้ว');
+  });
+}
+function pfCancel() { if (PF.code && P.has(PF.code)) pfLoad(PF.code); else { PF.code = ''; pfFill(null); pfSetMode('empty'); } }
+async function pfShowInfo(p) {
+  const list = Object.entries(p.sp || {}).map(([n, v]) => ({ n, c: v.c, d: v.d })).sort((a, b) => a.c - b.c);
+  const sup = list.length ? list.map((x, i) => `<span class="suptag${i === 0 && list.length > 1 ? ' best' : ''}">${esc(x.n)} ${fmt0(x.c)}฿${i === 0 && list.length > 1 ? ' · ถูกสุด' : ''}</span>`).join('') : '<span class="hint">ยังไม่มีต้นทุนแยกร้าน (เริ่มมีเมื่อรับของเข้า)</span>';
+  $('pfInfo').innerHTML = `<div><b>ต้นทุนแต่ละร้าน</b> ${sup}</div><div><b>ประวัติราคา</b> <span id="pfHist" class="hint">กำลังโหลด…</span></div>`; $('pfInfo').hidden = false;
+  try {
+    const h = await DB.priceHistory(p.code); if (PF.code !== p.code || !$('pfHist')) return;
+    $('pfHist').innerHTML = h.length ? h.slice(0, 6).map(x => { const at = x.at?.toDate ? x.at.toDate() : null; const d = x.new - x.old;
+      return `<span class="histtag">${at ? at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : ''} ${x.kind === 'cost' ? 'ทุน' : 'ขาย'} ${fmt0(x.old)}→${fmt0(x.new)} <span class="${d > 0 ? 'down' : 'up'}">${d > 0 ? '+' : ''}${fmt0(d)}</span></span>`; }).join('') : 'ยังไม่เคยเปลี่ยนราคาในระบบใหม่';
+  } catch (e) { if ($('pfHist')) $('pfHist').textContent = 'โหลดไม่ได้'; }
 }
 function pfBrandList() { $('brandList').innerHTML = BRANDS.map(b => `<option value="${esc(b[0])}">${esc(b[1])}</option>`).join(''); }
 $('pfCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pfCheckCode(); } });
 $('pfCode').addEventListener('change', pfCheckCode);
 $('pfGen').onclick = () => { $('pfGenBox').hidden = !$('pfGenBox').hidden; };
-$('pfRand').onclick = () => { $('pfCode').value = randomCode(); $('pfGenBox').hidden = true; pfCheckCode(); $('pfCodeMsg').textContent += ' (ติดสติกเกอร์บาร์โค้ดนี้ที่สินค้า)'; };
+$('pfRand').onclick = () => { $('pfCode').value = randomCode(); $('pfGenBox').hidden = true; pfCheckCode(); $('pfCodeMsg').textContent += ' (กด พิมพ์บาร์โค้ด แล้วติดที่สินค้า)'; };
 $('pfOwn').onclick = () => { $('pfGenBox').hidden = true; $('pfCode').value = ''; $('pfCode').placeholder = 'พิมพ์รหัสที่ต้องการ แล้วกด Enter'; $('pfCode').focus(); };
 ['pfBrand', 'pfVariant', 'pfSize', 'pfPrice', 'pfCost'].forEach(id => $(id).addEventListener('input', pfName));
-$('pfName').addEventListener('input', () => { PF.nameAuto = false; $('pfAuto').hidden = false; });
+$('pfSizeU').addEventListener('change', pfName);
+$('pfName').addEventListener('input', () => { PF.nameAuto = false; $('pfAuto').hidden = PF.mode !== 'new'; });
 $('pfAuto').onclick = () => { PF.nameAuto = true; pfName(); };
-$('pfPrice').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pfSave(false); } });
-$('pfSupAdd').onclick = () => addSupplier($('pfSupNew').value); $('pfSupNew').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addSupplier($('pfSupNew').value); } };
-$('pfSave').onclick = () => pfSave(false); $('pfSaveNext').onclick = () => pfSave(true); $('pfReset').onclick = () => pfClear(false);
-function prodOpen() { if (!PF.editing && !$('pfCode').value) $('pfCode').focus(); }
-function editProduct(code) { closeModal(); tab('prod'); pfLoad(code); }
+$('pfPrice').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pfSave(); } });
+$('pbAdd').onclick = () => pfClear(false);
+$('pbEdit').onclick = () => { if (PF.mode !== 'view') return; pfSetMode('edit'); $('pfPrice').focus(); $('pfPrice').select(); };
+$('pbSave').onclick = pfSave; $('pbDel').onclick = pfDelete; $('pbCancel').onclick = pfCancel;
+$('pbLabel').onclick = () => { const code = $('pfCode').value.trim(); if (!code) return; openLabel(P.get(code) || { code, name: $('pfName').value.trim(), price: parseFloat($('pfPrice').value) || 0 }); };
+function prodOpen() { drawPList(); if (PF.mode === 'empty') $('pSearch').focus(); }
+function editProduct(code) { closeModal(); tab('prod'); pMode('info'); pfLoad(code); $('pbEdit').click(); }
+
+/* ---------- product table ---------- */
+const PL = { sel: 0, rows: [] };
+function pFilter() {
+  const v = fixCode($('pSearch').value.trim()), sort = $('pSort').value;
+  let r;
+  if (sort === 'recent' && !v) r = S.recent.map(x => P.get(x.code)).filter(Boolean);
+  else if (/^\d{3,}$/.test(v)) r = findByDigits(v);
+  else if (v.length) { const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm); r = LIST.filter(p => words.every(w => p.key.includes(w))); }
+  else r = LIST.slice();
+  if (sort === 'low') r = r.filter(p => p.rank > 0 && p.price > 0 && (!p.cost || (p.price - p.cost) / p.price < 0.10));
+  if (sort === 'name') r.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  else if (sort !== 'recent' || v) r.sort((a, b) => b.rank - a.rank);
+  return r;
+}
+function drawPList() {
+  PL.rows = pFilter(); const shown = PL.rows.slice(0, 300); const tb = $('pRows'); tb.innerHTML = '';
+  for (const p of shown) {
+    const tr = document.createElement('tr'); tr.dataset.code = p.code; if (p.code === PF.code) tr.className = 'on';
+    tr.innerHTML = `<td class="num">${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(p.unit)}</td><td class="r num">${fmt0(p.price)}</td><td class="r num">${p.cost ? fmt0(p.cost) : '—'}</td><td class="r num">${p.stock ?? '—'}</td>`;
+    tr.onclick = () => handleCode(p.code); tb.appendChild(tr);
+  }
+  $('pCount').textContent = `${PL.rows.length.toLocaleString()} รายการ${PL.rows.length > 300 ? ' (แสดง 300 แรก พิมพ์ค้นหาให้แคบลง)' : ''}`;
+}
+function markRow(code) { $('pRows').querySelectorAll('tr').forEach(tr => tr.classList.toggle('on', tr.dataset.code === code)); $('pRows').querySelector('tr.on')?.scrollIntoView({ block: 'nearest' }); }
+let pSearchT = null;
+$('pSearch').addEventListener('input', () => { clearTimeout(pSearchT); pSearchT = setTimeout(drawPList, 120); });
+$('pSort').onchange = drawPList;
+$('pSearch').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); const i = Math.max(0, Math.min(PL.rows.length - 1, PL.rows.findIndex(p => p.code === PF.code) + (e.key === 'ArrowDown' ? 1 : -1)));
+    if (PL.rows[i]) handleCode(PL.rows[i].code); return;
+  }
+  if (e.key !== 'Enter') return; e.preventDefault();
+  const v = fixCode(e.target.value.trim()); if (!v) return;
+  if (P.has(v)) { e.target.value = ''; drawPList(); return handleCode(v); }
+  drawPList();
+  if (PL.rows.length === 1) { e.target.value = ''; const c = PL.rows[0].code; drawPList(); return handleCode(c); }
+  if (!PL.rows.length && /^\d{8,}$/.test(v)) { e.target.value = ''; drawPList(); return handleCode(v); }
+});
+
+/* ---------- page modes: product info · receive goods · count stock ---------- */
+const SC = { mode: 'info', cam: null, camOn: false, last: '', lastAt: 0, sup: store.get('rcvSup', ''), rcv: store.get('rcvList', []), counted: store.get('counted', { date: '', list: [] }) };
+if (SC.counted.date !== today()) SC.counted = { date: today(), list: [] };
+$('pMode').querySelectorAll('button').forEach(b => b.onclick = () => pMode(b.dataset.m));
+function pMode(m) {
+  SC.mode = m; $('pMode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.m === m));
+  $('paneInfo').hidden = m !== 'info'; $('paneRecv').hidden = m !== 'recv'; $('paneCount').hidden = m !== 'count';
+  $('scanMsg').textContent = ''; if (m === 'recv') drawRecv(); if (m === 'count') drawCounted();
+}
+// a barcode from the search box, the camera or a table click goes to whatever the page is doing
+function handleCode(code) {
+  const p = P.get(code);
+  if (!p) {
+    $('scanMsg').innerHTML = `ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> <button class="ghost" id="scanAdd">เพิ่มเป็นสินค้าใหม่</button>`;
+    $('scanAdd').onclick = () => { camStop(); pMode('info'); pfClear(false); $('pfCode').value = code; pfCheckCode(); $('scanMsg').textContent = ''; };
+    return;
+  }
+  $('scanMsg').textContent = '';
+  if (SC.mode === 'info') { if (PF.mode === 'edit' || PF.mode === 'new') { toast('บันทึกหรือยกเลิกการแก้ไขก่อน'); return; } pfLoad(code); if (innerWidth < 900) $('paneInfo').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  else if (SC.mode === 'recv') addRecv(p); else showCount(p);
+}
+function loadScanLib() {
+  if (window.Html5Qrcode) return Promise.resolve();
+  return new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+}
+async function camStart() {
+  try {
+    $('camBtn').disabled = true; $('scanMsg').textContent = 'กำลังเปิดกล้อง…';
+    await loadScanLib();
+    const Fm = Html5QrcodeSupportedFormats;
+    $('cam').hidden = false;
+    SC.cam = new Html5Qrcode('cam', { formatsToSupport: [Fm.EAN_13, Fm.EAN_8, Fm.UPC_A, Fm.UPC_E, Fm.CODE_128, Fm.CODE_39, Fm.ITF], experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false });
+    await SC.cam.start({ facingMode: 'environment' }, { fps: 12, qrbox: (w, h) => ({ width: Math.min(w * .85, 340), height: Math.min(h * .45, 160) }) }, code => onScanned(code), () => { });
+    SC.camOn = true; $('camBtn').textContent = 'ปิดกล้อง'; $('scanMsg').textContent = 'ส่องบาร์โค้ดให้อยู่ในกรอบ';
+  } catch (e) {
+    console.error(e); $('cam').hidden = true;
+    $('scanMsg').textContent = 'เปิดกล้องไม่ได้ ตรวจว่าอนุญาตให้เว็บนี้ใช้กล้องแล้ว (หรือพิมพ์บาร์โค้ดในช่องค้นหาแทน)';
+  } finally { $('camBtn').disabled = false; }
+}
+async function camStop() { try { await SC.cam?.stop(); SC.cam?.clear(); } catch (e) { } SC.camOn = false; $('cam').hidden = true; $('camBtn').textContent = 'สแกนด้วยกล้อง'; }
+$('camBtn').onclick = () => SC.camOn ? camStop() : camStart();
+function onScanned(code) {
+  code = String(code).trim(); const now = Date.now();
+  if (code === SC.last && now - SC.lastAt < 2500) return;   // same barcode still in front of the camera
+  SC.last = code; SC.lastAt = now;
+  try { navigator.vibrate?.(60); } catch (e) { }
+  handleCode(code);
+}
+
+/* receive goods */
+function drawRecvSup() {
+  const box = $('rcvSup'); box.innerHTML = '';
+  const list = supList().slice(); if (SC.sup && !list.includes(SC.sup)) list.push(SC.sup);
+  for (const n of list) { const b = document.createElement('button'); b.className = 'chip'; b.textContent = n; b.setAttribute('aria-pressed', SC.sup === n); b.onclick = () => { SC.sup = n; store.set('rcvSup', n); drawRecv(); }; box.appendChild(b); }
+  const a = document.createElement('button'); a.className = 'chip add'; a.textContent = '+ ร้านอื่น';
+  a.onclick = () => askNewSupplier(v => { if (v) { SC.sup = v; store.set('rcvSup', v); } drawRecv(); });
+  box.appendChild(a);
+}
+function addRecv(p) {
+  if (!SC.sup) { $('scanMsg').textContent = 'เลือกร้านที่รับของมาก่อน'; return; }
+  const ex = SC.rcv.find(i => i.code === p.code);
+  if (ex) ex.qty++; else SC.rcv.unshift({ code: p.code, name: p.name, qty: 1, cost: p.sp?.[SC.sup]?.c || p.cost || 0, oldCost: p.cost || 0 });
+  store.set('rcvList', SC.rcv); drawRecv(); toast(`${p.name.slice(0, 22)} ${ex ? '+1' : 'เพิ่มแล้ว'}`);
+}
+function drawRecv() {
+  drawRecvSup();
+  const box = $('rcvList'); box.innerHTML = '';
+  SC.rcv.forEach((it, idx) => {
+    const p = P.get(it.code); const best = p ? Object.entries(p.sp || {}).filter(([n]) => n !== SC.sup).sort((a, b) => a[1].c - b[1].c)[0] : null;
+    const row = document.createElement('div'); row.className = 'rrow';
+    row.innerHTML = `<div class="nm">${esc(it.name)}<div class="hint num">${esc(it.code)}${p?.cost ? ' · ต้นทุนเดิม ' + fmt0(p.cost) : ''}</div>${best && it.cost > best[1].c ? `<div class="cheaper">ร้าน ${esc(best[0])} ถูกกว่า (${fmt0(best[1].c)} ฿)</div>` : ''}</div>
+      <div class="rinputs"><label>จำนวน<input class="num" data-f="qty" inputmode="numeric" value="${it.qty}"></label><label>ต้นทุน/ชิ้น<input class="num" data-f="cost" inputmode="decimal" value="${it.cost || ''}"></label><button class="del" aria-label="ลบ">×</button></div>`;
+    row.querySelectorAll('input').forEach(inp => inp.onchange = () => { const v = parseFloat(inp.value); it[inp.dataset.f] = inp.dataset.f === 'qty' ? Math.max(1, Math.round(v) || 1) : (v >= 0 ? v : 0); store.set('rcvList', SC.rcv); drawRecv(); });
+    row.querySelector('.del').onclick = () => { SC.rcv.splice(idx, 1); store.set('rcvList', SC.rcv); drawRecv(); };
+    box.appendChild(row);
+  });
+  $('rcvEmpty').hidden = SC.rcv.length > 0; $('rcvFoot').hidden = !SC.rcv.length;
+  $('rcvTotal').textContent = fmt0(SC.rcv.reduce((s, i) => s + i.qty * (i.cost || 0), 0)); $('rcvCount').textContent = SC.rcv.length;
+}
+$('rcvClear').onclick = () => confirmBox('ล้างรายการรับของที่ยังไม่บันทึก?', 'ล้าง', () => { SC.rcv = []; store.set('rcvList', []); drawRecv(); });
+$('rcvSave').onclick = () => {
+  if (!SC.sup) { toast('เลือกร้านก่อน'); return; }
+  const items = SC.rcv.map(i => ({ ...i })); const total = items.reduce((s, i) => s + i.qty * (i.cost || 0), 0);
+  confirmBox(`บันทึกรับของจาก ${SC.sup} ${items.length} รายการ รวม ${fmt0(total)} บาท?`, 'บันทึก', () => {
+    DB.receiveGoods({ date: today(), supplier: SC.sup, items, total, email: S.user?.email || '' }).catch(fail);
+    for (const i of items) { const p = P.get(i.code); if (p) { p.stock = (p.stock || 0) + i.qty; if (i.cost > 0) { p.cost = i.cost; p.sp = { ...(p.sp || {}), [SC.sup]: { c: i.cost, d: today() } }; } } }
+    SC.rcv = []; store.set('rcvList', []); drawRecv(); drawPList(); toast('บันทึกรับของแล้ว สต็อกเพิ่มแล้ว');
+  });
+};
+
+/* count stock */
+function showCount(p) {
+  const box = $('cntCard');
+  box.innerHTML = `<div class="pcard"><h3>${esc(p.name)}</h3><div class="hint num">${esc(p.code)} · สต็อกในระบบ ${p.stock ?? '—'}</div>
+    <div class="inrow"><input class="cntnum num" id="cntQty" inputmode="numeric" placeholder="0" aria-label="จำนวนที่นับได้"><button class="primary" id="cntSave">บันทึก</button></div></div>`;
+  const q = $('cntQty'); q.focus();
+  const save = () => { const v = parseInt(q.value); if (isNaN(v) || v < 0) { toast('ใส่จำนวนที่นับได้'); return; }
+    DB.setStock(p.code, p.name, p.stock ?? null, v, S.user?.email).catch(fail);
+    SC.counted.list = [{ code: p.code, name: p.name, old: p.stock ?? null, n: v }, ...SC.counted.list.filter(x => x.code !== p.code)]; store.set('counted', SC.counted);
+    p.stock = v; box.innerHTML = `<div class="empty">บันทึก ${esc(p.name.slice(0, 30))} = ${v} แล้ว ยิงตัวต่อไปได้เลย</div>`; drawCounted(); drawPList(); $('pSearch').focus(); };
+  $('cntSave').onclick = save; q.onkeydown = e => { if (e.key === 'Enter') save(); };
+}
+function drawCounted() {
+  $('cntDoneCount').textContent = `(${SC.counted.list.length})`;
+  $('cntDone').innerHTML = SC.counted.list.map(x => `<div class="recent"><span class="nm">${esc(x.name)}<div class="hint num">${esc(x.code)}</div></span><span class="num">${x.old ?? '—'} → <b>${x.n}</b></span></div>`).join('') || '<div class="hint" style="padding:8px">ยังไม่ได้นับ</div>';
+}
+
+/* ---------- barcode stickers (XP-420B) ---------- */
+const LABEL_SIZES = [['32x25', '32 × 25 มม.'], ['40x30', '40 × 30 มม.'], ['50x30', '50 × 30 มม.'], ['30x20', '30 × 20 มม.']];
+function loadBarcodeLib() {
+  if (window.JsBarcode) return Promise.resolve();
+  return new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+}
+function barcodeSVG(code) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const ean = /^\d{13}$/.test(code) && +code[12] === eanCheck(code.slice(0, 12));
+  try { JsBarcode(svg, code, { format: ean ? 'EAN13' : 'CODE128', displayValue: true, fontSize: 14, margin: 0, height: 50, width: 2, flat: true }); }
+  catch (e) { JsBarcode(svg, code, { format: 'CODE128', displayValue: true, fontSize: 14, margin: 0, height: 50, width: 2 }); }
+  svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('preserveAspectRatio', 'none');
+  return svg.outerHTML;
+}
+async function openLabel(p) {
+  try { await loadBarcodeLib(); } catch (e) { toast('โหลดตัวสร้างบาร์โค้ดไม่ได้ ต้องต่อเน็ตครั้งแรก'); return; }
+  const L = store.get('label', { size: '32x25', price: true, shop: false });
+  const s = openModal(`<h2>พิมพ์สติกเกอร์บาร์โค้ด</h2><p style="margin:0 0 8px">${esc(p.name)}</p>
+    <div class="lblopts">
+      <label>จำนวนดวง<input class="tin num" id="lbN" inputmode="numeric" value="1"></label>
+      <label>ขนาดสติกเกอร์<select class="tin" id="lbSize">${LABEL_SIZES.map(([v, l]) => opt(v, l, v === L.size)).join('')}</select></label>
+      <label class="check"><input type="checkbox" id="lbPrice" ${L.price ? 'checked' : ''}> พิมพ์ราคา</label>
+      <label class="check"><input type="checkbox" id="lbShop" ${L.shop ? 'checked' : ''}> พิมพ์ชื่อร้าน</label>
+    </div>
+    <div class="lblprev" id="lbPrev"></div>
+    <p class="hint">ถ้าสติกเกอร์ออกเครื่องใบเสร็จ ในหน้าต่างพิมพ์ให้เลือก Xprinter XP-420B</p>
+    <div class="mrow"><button class="ghost" id="lbNo">ยกเลิก</button><button class="primary" id="lbGo">พิมพ์</button></div>`);
+  const get = () => ({ n: Math.max(1, Math.min(200, parseInt(s.querySelector('#lbN').value) || 1)), size: s.querySelector('#lbSize').value, price: s.querySelector('#lbPrice').checked, shop: s.querySelector('#lbShop').checked });
+  const prev = () => { const o = get(); const [w, h] = o.size.split('x').map(Number); s.querySelector('#lbPrev').innerHTML = `<div class="lbl" style="width:${w * 3.4}px;height:${h * 3.4}px">${labelInner(p, o, w, h)}</div>`; };
+  s.querySelectorAll('#lbSize,#lbPrice,#lbShop').forEach(x => x.onchange = prev); prev();
+  s.querySelector('#lbNo').onclick = closeModal;
+  s.querySelector('#lbGo').onclick = () => { const o = get(); store.set('label', { size: o.size, price: o.price, shop: o.shop }); closeModal(); printLabels(p, o); };
+}
+function labelInner(p, o, w, h) {
+  const small = h <= 20;
+  return `${o.shop ? `<div class="ls">${esc(S.settings.shop)}</div>` : ''}<div class="ln${small ? ' one' : ''}">${esc(p.name)}</div><div class="lb">${barcodeSVG(p.code)}</div>${o.price ? `<div class="lp">${fmt0(p.price)} บาท</div>` : ''}`;
+}
+function printLabels(p, o) {
+  const [w, h] = o.size.split('x').map(Number);
+  const fontUrl = new URL('fonts/GoogleSans.woff2', location.href).href;
+  const one = `<div class="lbl">${labelInner(p, o, w, h)}</div>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    @font-face{font-family:"Google Sans";src:url(${fontUrl}) format("woff2");font-weight:400 700}
+    @page{size:${w}mm ${h}mm;margin:0}
+    html,body{margin:0;padding:0;background:#fff;color:#000}
+    .lbl{width:${w}mm;height:${h}mm;box-sizing:border-box;padding:1.2mm 1.5mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;page-break-after:always;break-after:page;font-family:"Google Sans",sans-serif;color:#000}
+    .ls{font-size:${Math.max(6, h / 4.5)}px;text-align:center;font-weight:600}
+    .ln{font-size:${Math.max(7, h / 3.3)}px;line-height:1.15;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .ln.one{-webkit-line-clamp:1}
+    .lb{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:.5mm 0}
+    .lb svg{width:100%;height:100%;max-height:${h * 0.5}mm}
+    .lp{font-size:${Math.max(9, h / 2.2)}px;font-weight:700;text-align:right;line-height:1}
+  </style></head><body>${one.repeat(o.n)}</body></html>`;
+  const f = document.createElement('iframe'); f.className = 'printframe'; document.body.appendChild(f);
+  const d = f.contentDocument; d.open(); d.write(html); d.close();
+  (d.fonts?.ready || Promise.resolve()).then(() => setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('สั่งพิมพ์ไม่ได้'); } setTimeout(() => f.remove(), 60000); }, 80));
+}
 
 /* ---------- keys & clock ---------- */
 document.addEventListener('keydown', e => {
@@ -542,9 +804,9 @@ document.addEventListener('click', e => {
   if (!e.target.closest('input,button,select,.modal,summary,label')) focusQ();
 });
 // number boxes: select the whole value on click so typing replaces it; Thai-layout digits become numbers
-document.addEventListener('focusin', e => { if (e.target.matches('.qty input, input.price, #disc, .rinputs input, #recv, #chkPrice, #cntQty')) setTimeout(() => { try { e.target.select(); } catch (x) { } }, 0); });
+document.addEventListener('focusin', e => { if (e.target.matches('.qty input, .ld input, input.price, #disc, .rinputs input, #recv, #chkPrice, #cntQty, #pdQtyEdit')) setTimeout(() => { try { e.target.select(); } catch (x) { } }, 0); });
 document.addEventListener('input', e => {
-  const el = e.target; if (!el.matches('[inputmode="numeric"], [inputmode="decimal"]') || el.id === 'q' || el.id === 'scanInput' || el.id === 'pfCode') return;
+  const el = e.target; if (!el.matches('[inputmode="numeric"], [inputmode="decimal"]') || el.id === 'q' || el.id === 'pSearch' || el.id === 'pfCode') return;
   const v = el.value; if (!/[\u0E00-\u0E7F\/\-]/.test(v)) return;   // number boxes never need letters, "/" or "-"
   const c = thaiDigits(v); if (c !== v) el.value = c;
 });
@@ -657,7 +919,7 @@ function drawTop(fb, span) {
   const tb = $('rTop'); tb.innerHTML = '';
   if (!fb) { $('rTopNote').textContent = 'เลือกช่วงไม่เกิน 62 วันเพื่อดูสินค้าขายดี'; return; }
   const agg = {};
-  for (const b of fb) for (const i of b.items) { const a = agg[i.code] ||= { name: i.name, qty: 0, net: 0, profit: 0, costOk: true }; a.qty += i.qty; a.net += i.price * i.qty; a.profit += (i.price - (i.cost || 0)) * i.qty; if (!i.cost) a.costOk = false; }
+  for (const b of fb) for (const i of b.items) { const a = agg[i.code] ||= { name: i.name, qty: 0, net: 0, profit: 0, costOk: true }; a.qty += i.qty; a.net += i.price * i.qty - (i.ld || 0); a.profit += (i.price - (i.cost || 0)) * i.qty - (i.ld || 0); if (!i.cost) a.costOk = false; }
   const top = Object.values(agg).sort((a, b) => b.net - a.net).slice(0, 15);
   $('rTopNote').textContent = top.length ? 'เฉพาะบิลในระบบใหม่' : 'ยังไม่มีบิลในช่วงนี้';
   for (const a of top) tb.insertAdjacentHTML('beforeend', `<tr><td>${esc(a.name)}</td><td class="r num">${a.qty}</td><td class="r num">${fmt0(a.net)}</td><td class="r num">${a.costOk ? fmt0(a.profit) : '<span class="hint">ไม่มีต้นทุน</span>'}</td></tr>`);
@@ -707,7 +969,7 @@ rInit();
 /* ---------- copy an old bill into a new one ---------- */
 function copyBill(b) {
   if (T().cart.length) { S.tabs.push(newTab()); S.cur = S.tabs.length - 1; }
-  for (const i of b.items) { const p = P.get(i.code); T().cart.push({ code: i.code, name: p?.name || i.name, unit: p?.unit || i.unit, price: p ? p.price : i.price, qty: i.qty }); }
+  for (const i of b.items) { const p = P.get(i.code); T().cart.push({ code: i.code, name: p?.name || i.name, unit: p?.unit || i.unit, price: p ? p.price : i.price, qty: i.qty, ld: i.ld || 0 }); }
   closeModal(); tab('sell'); render(); toast('คัดลอกบิลแล้ว ราคาเป็นราคาปัจจุบัน');
 }
 
@@ -722,177 +984,7 @@ $('histFile').onchange = async e => {
 };
 
 /* ---------- print-now toggle on the sell screen ---------- */
-function setAutoPrint(v) { S.autoPrint = v; store.set('autoPrint', v); $('setAutoPrint').checked = v; }
-
-/* ---------- scan view (phone): check price, receive goods, count stock ---------- */
-const SC = { mode: 'check', cam: null, camOn: false, last: '', lastAt: 0, sup: store.get('rcvSup', ''), rcv: store.get('rcvList', []), counted: store.get('counted', { date: '', list: [] }) };
-if (SC.counted.date !== today()) SC.counted = { date: today(), list: [] };
-$('scanMode').querySelectorAll('button').forEach(b => b.onclick = () => scanMode(b.dataset.m));
-function scanMode(m) {
-  SC.mode = m; $('scanMode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.m === m));
-  $('modeCheck').hidden = m !== 'check'; $('modeRecv').hidden = m !== 'recv'; $('modeCount').hidden = m !== 'count';
-  $('scanMsg').textContent = ''; if (m === 'recv') drawRecv(); if (m === 'count') drawCounted();
-}
-function loadScanLib() {
-  if (window.Html5Qrcode) return Promise.resolve();
-  return new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
-}
-async function camStart() {
-  try {
-    $('camBtn').disabled = true; $('scanMsg').textContent = 'กำลังเปิดกล้อง…';
-    await loadScanLib();
-    const F = Html5QrcodeSupportedFormats;
-    $('cam').hidden = false;
-    SC.cam = new Html5Qrcode('cam', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF], experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false });
-    await SC.cam.start({ facingMode: 'environment' }, { fps: 12, qrbox: (w, h) => ({ width: Math.min(w * .85, 340), height: Math.min(h * .45, 160) }) }, code => onScanned(code), () => { });
-    SC.camOn = true; $('camBtn').textContent = 'ปิดกล้อง'; $('scanMsg').textContent = 'ส่องบาร์โค้ดให้อยู่ในกรอบ';
-  } catch (e) {
-    console.error(e); $('cam').hidden = true;
-    $('scanMsg').textContent = 'เปิดกล้องไม่ได้ ตรวจว่าอนุญาตให้เว็บนี้ใช้กล้องแล้ว (หรือพิมพ์บาร์โค้ดในช่องแทน)';
-  } finally { $('camBtn').disabled = false; }
-}
-async function camStop() { try { await SC.cam?.stop(); SC.cam?.clear(); } catch (e) { } SC.camOn = false; $('cam').hidden = true; $('camBtn').textContent = 'เปิดกล้องสแกน'; }
-$('camBtn').onclick = () => SC.camOn ? camStop() : camStart();
-function onScanned(code) {
-  code = String(code).trim(); const now = Date.now();
-  if (code === SC.last && now - SC.lastAt < 2500) return;   // same barcode still in front of the camera
-  SC.last = code; SC.lastAt = now;
-  try { navigator.vibrate?.(60); } catch (e) { }
-  handleCode(code);
-}
-function scanHits(v) {
-  v = fixCode(v);
-  if (/^\d+$/.test(v)) return v.length >= 3 ? findByDigits(v) : [];
-  if (v.length < 2) return [];
-  const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
-  return LIST.filter(p => words.every(w => p.key.includes(w)));
-}
-function drawScanHits(list) {
-  const box = $('scanHits'); box.innerHTML = '';
-  for (const p of list.slice(0, 12)) {
-    const b = document.createElement('button'); b.className = 'recent';
-    b.innerHTML = `<span class="nm">${esc(p.name)}<div class="hint num">${esc(p.code)}</div></span><span class="num">${fmt0(p.price)} ฿</span>`;
-    b.onclick = () => { $('scanInput').value = ''; box.innerHTML = ''; $('scanInput').blur(); handleCode(p.code); }; box.appendChild(b);
-  }
-  if (list.length > 12) box.insertAdjacentHTML('beforeend', `<div class="hint">พบ ${list.length} รายการ พิมพ์เพิ่มให้แคบลง</div>`);
-}
-$('scanInput').addEventListener('input', e => { const v = e.target.value.trim(); drawScanHits(scanHits(v)); $('scanMsg').textContent = v && /^\d{3,}$/.test(v) && !scanHits(v).length ? 'ไม่พบสินค้าที่บาร์โค้ดลงท้ายด้วย ' + v : ''; });
-$('scanInput').addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return; e.preventDefault();
-  const v = fixCode(e.target.value.trim()); if (!v) return;
-  const hits = scanHits(v);
-  if (P.has(v) || hits.length === 1) { e.target.value = ''; $('scanHits').innerHTML = ''; e.target.blur(); return handleCode(P.has(v) ? v : hits[0].code); }
-  if (!hits.length && /^\d{8,}$/.test(v)) { e.target.value = ''; return handleCode(v); }
-  e.target.blur();   // several matches: list stays on screen to tap
-});
-function openPicker(q) {
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
-  const res = LIST.filter(p => words.every(w => p.key.includes(w))).slice(0, 30);
-  const s = openModal(`<h2>เลือกสินค้า</h2>${res.length ? '' : '<p class="hint">ไม่พบสินค้า</p>'}<div class="sups">${res.map((p, i) => `<button class="recent" data-i="${i}"><span class="nm">${esc(p.name)}<div class="hint num">${esc(p.code)}</div></span><span class="num">${fmt0(p.price)} ฿</span></button>`).join('')}</div><div class="mrow"><button class="ghost" id="pkClose">ปิด</button></div>`);
-  s.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { closeModal(); handleCode(res[+b.dataset.i].code); });
-  s.querySelector('#pkClose').onclick = closeModal;
-}
-function handleCode(code) {
-  const p = P.get(code);
-  if (!p) {
-    $('scanMsg').innerHTML = `ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> <button class="ghost" id="scanAdd">เพิ่มสินค้าใหม่</button>`;
-    $('scanAdd').onclick = () => { camStop(); tab('prod'); pfClear(false); $('pfCode').value = code; pfCheckCode(); };
-    return;
-  }
-  $('scanMsg').textContent = '';
-  if (SC.mode === 'check') showCheck(p); else if (SC.mode === 'recv') addRecv(p); else showCount(p);
-}
-
-/* check price */
-function supRows(p) {
-  const list = Object.entries(p.sp || {}).map(([n, v]) => ({ n, c: v.c, d: v.d })).sort((a, b) => a.c - b.c);
-  if (!list.length) return '<div class="hint">ยังไม่มีบันทึกต้นทุนแยกร้าน (จะเริ่มมีเมื่อรับของเข้าผ่านหน้านี้)</div>';
-  return list.map((x, i) => `<div class="suprow${i === 0 && list.length > 1 ? ' best' : ''}"><span>${esc(x.n)}${i === 0 && list.length > 1 ? ' · ถูกสุด' : ''}</span><span class="num">${fmt0(x.c)} ฿ <span class="hint">${x.d ? x.d.slice(8) + '/' + x.d.slice(5, 7) : ''}</span></span></div>`).join('');
-}
-async function showCheck(p) {
-  $('chkEmpty').hidden = true; const box = $('chkCard'); box.hidden = false;
-  const margin = p.cost ? Math.round((p.price - p.cost) / p.price * 100) : null;
-  box.innerHTML = `<div class="pcard">
-    <h3>${esc(p.name)}</h3><div class="hint num">${esc(p.code)} · ${esc(p.unit)}</div>
-    <div class="bigprice num">${fmt0(p.price)} <span style="font-size:20px">บาท</span></div>
-    <div class="facts">
-      <div class="fact"><div class="k">ต้นทุน</div><div class="v num">${p.cost ? fmt0(p.cost) : '—'}</div></div>
-      <div class="fact"><div class="k">กำไร</div><div class="v num">${margin === null ? '—' : margin + '%'}</div></div>
-      <div class="fact"><div class="k">สต็อกในระบบ</div><div class="v num">${p.stock ?? '—'}</div></div>
-    </div>
-    <div class="inrow"><input class="tin num" id="chkPrice" inputmode="decimal" value="${p.price}" style="flex:0 1 140px" aria-label="ราคาใหม่"><button class="ghost" id="chkSave">บันทึกราคาใหม่</button><button class="ghost" id="chkEdit">แก้ข้อมูลสินค้า</button></div>
-    <strong>ต้นทุนแต่ละร้าน</strong><div class="sups">${supRows(p)}</div>
-    <strong>ประวัติราคา</strong><div class="hist" id="chkHist"><span class="hint">กำลังโหลด…</span></div>
-  </div>`;
-  $('chkSave').onclick = () => { const v = Math.round(parseFloat($('chkPrice').value) * 100) / 100; if (!(v >= 0) || v === p.price) return; const old = p.price; setProductPrice(p.code, v); toast(`บันทึกราคา ${fmt0(old)} → ${fmt0(v)} บาท`); showCheck(p); };
-  $('chkEdit').onclick = () => { camStop(); editProduct(p.code); };
-  try {
-    const h = await DB.priceHistory(p.code); if ($('chkCard').innerHTML.indexOf(p.code) < 0) return;
-    $('chkHist').innerHTML = h.length ? h.slice(0, 12).map(x => { const at = x.at?.toDate ? x.at.toDate() : null; const d = x.new - x.old;
-      return `<div class="l" style="display:flex;justify-content:space-between;gap:8px"><span>${at ? at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : ''} ${x.kind === 'cost' ? 'ต้นทุน' + (x.supplier ? ' (' + esc(x.supplier) + ')' : '') : 'ราคาขาย'}</span><span class="num">${fmt0(x.old)} → ${fmt0(x.new)} <span class="${d > 0 ? 'down' : 'up'}">${d > 0 ? '+' : ''}${fmt0(d)}</span></span></div>`; }).join('')
-      : '<span class="hint">ยังไม่เคยเปลี่ยนราคาในระบบใหม่</span>';
-  } catch (e) { $('chkHist').innerHTML = '<span class="hint">โหลดประวัติไม่ได้</span>'; }
-}
-
-/* receive goods */
-function drawRecvSup() {
-  const box = $('rcvSup'); box.innerHTML = '';
-  const list = supList().slice(); if (SC.sup && !list.includes(SC.sup)) list.push(SC.sup);
-  for (const n of list) { const b = document.createElement('button'); b.className = 'chip'; b.textContent = n; b.setAttribute('aria-pressed', SC.sup === n); b.onclick = () => { SC.sup = n; store.set('rcvSup', n); drawRecv(); }; box.appendChild(b); }
-  const a = document.createElement('button'); a.className = 'chip add'; a.textContent = '+ ร้านอื่น';
-  a.onclick = () => { const s = openModal(`<h2>เพิ่มร้าน</h2><input class="tin" id="newSup" placeholder="ชื่อร้าน"><div class="mrow"><button class="ghost" id="nsNo">ยกเลิก</button><button class="primary" id="nsOk">เพิ่ม</button></div>`);
-    s.querySelector('#nsNo').onclick = closeModal; s.querySelector('#newSup').focus();
-    s.querySelector('#nsOk').onclick = () => { const v = s.querySelector('#newSup').value.trim(); if (v) { addSupplier(v); SC.sup = v; store.set('rcvSup', v); } closeModal(); drawRecv(); }; };
-  box.appendChild(a);
-}
-function addRecv(p) {
-  if (!SC.sup) { $('scanMsg').textContent = 'เลือกร้านที่รับของมาก่อน'; return; }
-  const ex = SC.rcv.find(i => i.code === p.code);
-  if (ex) ex.qty++; else SC.rcv.unshift({ code: p.code, name: p.name, qty: 1, cost: p.sp?.[SC.sup]?.c || p.cost || 0, oldCost: p.cost || 0 });
-  store.set('rcvList', SC.rcv); drawRecv(); toast(`${p.name.slice(0, 22)} ${ex ? '+1' : 'เพิ่มแล้ว'}`);
-}
-function drawRecv() {
-  drawRecvSup();
-  const box = $('rcvList'); box.innerHTML = '';
-  SC.rcv.forEach((it, idx) => {
-    const p = P.get(it.code); const best = p ? Object.entries(p.sp || {}).filter(([n]) => n !== SC.sup).sort((a, b) => a[1].c - b[1].c)[0] : null;
-    const row = document.createElement('div'); row.className = 'rrow';
-    row.innerHTML = `<div class="nm">${esc(it.name)}<div class="hint num">${esc(it.code)}${p?.cost ? ' · ต้นทุนเดิม ' + fmt0(p.cost) : ''}</div>${best && it.cost > best[1].c ? `<div class="cheaper">ร้าน ${esc(best[0])} ถูกกว่า (${fmt0(best[1].c)} ฿)</div>` : ''}</div>
-      <div class="rinputs"><label>จำนวน<input class="num" data-f="qty" inputmode="numeric" value="${it.qty}"></label><label>ต้นทุน/ชิ้น<input class="num" data-f="cost" inputmode="decimal" value="${it.cost || ''}"></label><button class="del" aria-label="ลบ">×</button></div>`;
-    row.querySelectorAll('input').forEach(inp => inp.onchange = () => { const v = parseFloat(inp.value); it[inp.dataset.f] = inp.dataset.f === 'qty' ? Math.max(1, Math.round(v) || 1) : (v >= 0 ? v : 0); store.set('rcvList', SC.rcv); drawRecv(); });
-    row.querySelector('.del').onclick = () => { SC.rcv.splice(idx, 1); store.set('rcvList', SC.rcv); drawRecv(); };
-    box.appendChild(row);
-  });
-  $('rcvEmpty').hidden = SC.rcv.length > 0; $('rcvFoot').hidden = !SC.rcv.length;
-  $('rcvTotal').textContent = fmt0(SC.rcv.reduce((s, i) => s + i.qty * (i.cost || 0), 0)); $('rcvCount').textContent = SC.rcv.length;
-}
-$('rcvClear').onclick = () => confirmBox('ล้างรายการรับของที่ยังไม่บันทึก?', 'ล้าง', () => { SC.rcv = []; store.set('rcvList', []); drawRecv(); });
-$('rcvSave').onclick = () => {
-  if (!SC.sup) { toast('เลือกร้านก่อน'); return; }
-  const items = SC.rcv.map(i => ({ ...i })); const total = items.reduce((s, i) => s + i.qty * (i.cost || 0), 0);
-  confirmBox(`บันทึกรับของจาก ${SC.sup} ${items.length} รายการ รวม ${fmt0(total)} บาท?`, 'บันทึก', () => {
-    DB.receiveGoods({ date: today(), supplier: SC.sup, items, total, email: S.user?.email || '' }).catch(fail);
-    for (const i of items) { const p = P.get(i.code); if (p) { p.stock = (p.stock || 0) + i.qty; if (i.cost > 0) { p.cost = i.cost; p.sp = { ...(p.sp || {}), [SC.sup]: { c: i.cost, d: today() } }; } } }
-    SC.rcv = []; store.set('rcvList', []); drawRecv(); toast('บันทึกรับของแล้ว สต็อกเพิ่มแล้ว');
-  });
-};
-
-/* count stock */
-function showCount(p) {
-  const box = $('cntCard');
-  box.innerHTML = `<div class="pcard"><h3>${esc(p.name)}</h3><div class="hint num">${esc(p.code)} · สต็อกในระบบ ${p.stock ?? '—'}</div>
-    <div class="inrow"><input class="cntnum num" id="cntQty" inputmode="numeric" placeholder="0" aria-label="จำนวนที่นับได้"><button class="primary" id="cntSave">บันทึก</button></div></div>`;
-  const q = $('cntQty'); q.focus();
-  const save = () => { const v = parseInt(q.value); if (isNaN(v) || v < 0) { toast('ใส่จำนวนที่นับได้'); return; }
-    DB.setStock(p.code, p.name, p.stock ?? null, v, S.user?.email).catch(fail);
-    SC.counted.list = [{ code: p.code, name: p.name, old: p.stock ?? null, n: v }, ...SC.counted.list.filter(x => x.code !== p.code)]; store.set('counted', SC.counted);
-    p.stock = v; box.innerHTML = `<div class="empty">บันทึก ${esc(p.name.slice(0, 30))} = ${v} แล้ว สแกนตัวต่อไปได้เลย</div>`; drawCounted(); };
-  $('cntSave').onclick = save; q.onkeydown = e => { if (e.key === 'Enter') save(); };
-}
-function drawCounted() {
-  $('cntDoneCount').textContent = `(${SC.counted.list.length})`;
-  $('cntDone').innerHTML = SC.counted.list.map(x => `<div class="recent"><span class="nm">${esc(x.name)}<div class="hint num">${esc(x.code)}</div></span><span class="num">${x.old ?? '—'} → <b>${x.n}</b></span></div>`).join('') || '<div class="hint" style="padding:8px">ยังไม่ได้นับ</div>';
-}
+function setAutoPrint() { S.autoPrint = false; store.set('autoPrint', false); }
 
 /* ---------- start-up: sign in, check access, first import, then load ---------- */
 const gate = (msg, { login = false, importer = false, logout = false } = {}) => {
@@ -939,8 +1031,8 @@ function startData() {
 function showApp() {
   appShown = true; store.set('ready', true);
   $('gate').hidden = true; $('appRoot').hidden = false;
-  rebuildCatalog(); renderSellers(); pfDrawChips(); renderRecent(); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync();
-  if (matchMedia('(max-width: 700px)').matches) tab('scan'); else focusQ();
+  rebuildCatalog(); renderSellers(); pfDrawChips(); pfSetMode('empty'); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync();
+  if (matchMedia('(max-width: 700px)').matches) tab('prod'); else focusQ();
 }
 function noAccess() {
   unsubs.forEach(u => u()); unsubs = [];

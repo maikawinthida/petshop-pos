@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=17">
+<link rel="stylesheet" href="css/app.css?v=18">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -34,8 +34,7 @@
   <h1 id="shopTitle">หนองเป็ดเพ็ทชอป</h1>
   <div class="tabs" role="tablist">
     <button id="tabSell" role="tab" aria-selected="true">ขาย</button>
-    <button id="tabScan" role="tab" aria-selected="false">สแกน</button>
-    <button id="tabProd" role="tab" aria-selected="false">สินค้า</button>
+    <button id="tabProd" role="tab" aria-selected="false">ข้อมูลสินค้า</button>
     <button id="tabBills" role="tab" aria-selected="false">บิลวันนี้</button>
     <button id="tabReport" role="tab" aria-selected="false">รายงาน</button>
   </div>
@@ -68,7 +67,8 @@
     </div>
     <div class="card sums">
       <div class="row"><span>รวมก่อนลด</span><span class="num" id="subtotal">0.00</span></div>
-      <div class="row"><span>ส่วนลด</span>
+      <div class="row" id="ldRow" hidden><span>ลดรายการ</span><span class="num ldamt" id="ldAmt">0.00</span></div>
+      <div class="row"><span>ส่วนลดท้ายบิล</span>
         <span class="disc">
           <span class="seg"><button id="dBaht" aria-pressed="true">บาท</button><button id="dPct" aria-pressed="false">%</button></span>
           <input id="disc" inputmode="decimal" value="0" aria-label="ส่วนลด">
@@ -88,98 +88,83 @@
   </aside>
 </main>
 
-<main id="viewScan" hidden>
-  <div class="seg big scanmode" id="scanMode">
-    <button data-m="check" aria-pressed="true">เช็คราคา</button><button data-m="recv" aria-pressed="false">รับของเข้า</button><button data-m="count" aria-pressed="false">นับสต็อก</button>
-  </div>
-  <section class="card scanbox">
-    <div id="cam" class="cam" hidden></div>
-    <div class="inrow">
-      <button class="primary" id="camBtn">เปิดกล้องสแกน</button>
-      <input class="tin num" id="scanInput" type="search" enterkeyhint="search" autocomplete="off" placeholder="พิมพ์ 5 ตัวท้ายบาร์โค้ด หรือชื่อ">
+<main id="viewProd" hidden>
+  <div class="pmodes">
+    <div class="seg big" id="pMode">
+      <button data-m="info" aria-pressed="true">ข้อมูลสินค้า</button><button data-m="recv" aria-pressed="false">รับของเข้า</button><button data-m="count" aria-pressed="false">นับสต็อก</button>
     </div>
-    <div class="hint" id="scanMsg"></div>
-    <div class="sups" id="scanHits"></div>
+  </div>
+
+  <section class="card pform" id="paneInfo">
+    <div class="phead"><h2 id="pfTitle">ข้อมูลสินค้า</h2><span class="pstate" id="pfState">เลือกสินค้าจากตาราง หรือกด เพิ่ม</span></div>
+    <fieldset id="pfFields" class="pfields" disabled>
+      <div class="fgrid">
+        <div class="field2 span2"><label for="pfCode">บาร์โค้ด <span class="req">*</span></label>
+          <div class="inrow"><input class="tin num" id="pfCode" inputmode="numeric" autocomplete="off" placeholder="ยิงบาร์โค้ด แล้ว Enter"><button type="button" class="ghost" id="pfGen">เพิ่มรหัสสินค้า</button></div>
+          <div class="inrow" id="pfGenBox" hidden><button type="button" class="ghost" id="pfRand">สุ่มรหัส</button><button type="button" class="ghost" id="pfOwn">พิมพ์เอง</button></div>
+          <div id="pfCodeMsg" class="hint"></div></div>
+        <div class="field2 span4"><label for="pfName">ชื่อสินค้า <span class="req">*</span> <button type="button" class="linkbtn" id="pfAuto" hidden>ใช้ชื่ออัตโนมัติ</button></label>
+          <input class="tin bold" id="pfName" autocomplete="off" placeholder="ตั้งให้อัตโนมัติจาก ยี่ห้อ + รุ่น/รส + ขนาด"></div>
+
+        <div class="field2 span2"><label for="pfBrand">ยี่ห้อ</label><input class="tin" id="pfBrand" list="brandList" autocomplete="off" placeholder="เช่น สมา, มีโอ"><datalist id="brandList"></datalist><div class="hint" id="pfBrandMsg"></div></div>
+        <div class="field2 span2"><label for="pfVariant">รุ่น / รส</label><input class="tin" id="pfVariant" autocomplete="off" placeholder="เช่น แมวโต ทูน่า"></div>
+        <div class="field2 span2"><label for="pfSize">ขนาด</label><div class="inrow nowrap"><input class="tin num" id="pfSize" inputmode="decimal" placeholder="1.2"><select class="tin" id="pfSizeU" aria-label="หน่วยขนาด"></select></div></div>
+
+        <div class="field2"><label for="pfPrice">ราคาขาย <span class="req">*</span></label><input class="tin num big" id="pfPrice" inputmode="decimal" placeholder="0"></div>
+        <div class="field2"><label for="pfCost">ต้นทุน</label><input class="tin num" id="pfCost" inputmode="decimal"></div>
+        <div class="field2"><label for="pfQty">สต็อก</label><input class="tin num" id="pfQty" inputmode="numeric"></div>
+        <div class="field2"><label for="pfUnit">หน่วยขาย</label><select class="tin" id="pfUnit"></select></div>
+        <div class="field2"><label for="pfAnimal">สัตว์</label><select class="tin" id="pfAnimal"></select></div>
+        <div class="field2"><label for="pfType">ประเภท</label><select class="tin" id="pfType"></select></div>
+
+        <div class="field2 span2"><label for="pfSup">รับมาจากร้าน</label><select class="tin" id="pfSup"></select></div>
+        <div class="field2 span4 margin" id="pfMargin"></div>
+      </div>
+    </fieldset>
+
+    <div class="pinfo" id="pfInfo" hidden></div>
+    <div id="pfErr" class="notice" hidden style="margin:0"></div>
+
+    <div class="pbtns">
+      <button class="pb add" id="pbAdd">เพิ่ม</button>
+      <button class="pb" id="pbEdit">แก้ไข</button>
+      <button class="pb save" id="pbSave">บันทึก</button>
+      <button class="pb del" id="pbDel">ลบ</button>
+      <button class="pb" id="pbCancel">ยกเลิก</button>
+      <button class="pb" id="pbLabel">พิมพ์บาร์โค้ด</button>
+      <label class="nextchk"><input type="checkbox" id="pfNext"> บันทึกแล้วเพิ่มตัวถัดไป (ใช้ข้อมูลเดิม)</label>
+    </div>
   </section>
 
-  <section id="modeCheck" class="card scanres">
-    <div class="empty" id="chkEmpty">สแกนสินค้าเพื่อดูราคา ต้นทุน สต็อก และร้านที่ถูกสุด</div>
-    <div id="chkCard" hidden></div>
-  </section>
-
-  <section id="modeRecv" class="card scanres" hidden>
+  <section id="paneRecv" class="card scanres" hidden>
     <div class="field2"><span class="lab">รับจากร้าน</span><div class="fchips" id="rcvSup"></div></div>
+    <p class="hint" style="margin:0">ยิงบาร์โค้ด หรือคลิกสินค้าในตารางด้านล่าง เพื่อใส่รายการรับเข้า (ซ้ำ = +1)</p>
     <div id="rcvList"></div>
-    <div class="empty" id="rcvEmpty">เลือกร้าน แล้วสแกนสินค้าที่รับเข้ามาทีละตัว</div>
+    <div class="empty" id="rcvEmpty">ยังไม่มีรายการรับเข้า</div>
     <div class="rcvfoot" id="rcvFoot" hidden>
       <div><span class="hint">รวม</span> <b class="num" id="rcvTotal">0</b> <span class="hint">บาท · <span id="rcvCount">0</span> รายการ</span></div>
       <div class="savebar"><button class="ghost bad" id="rcvClear">ล้างรายการ</button><button class="primary" id="rcvSave">บันทึกรับของเข้า</button></div>
     </div>
   </section>
 
-  <section id="modeCount" class="card scanres" hidden>
-    <div id="cntCard"><div class="empty">สแกนสินค้าที่ชั้น แล้วใส่จำนวนที่นับได้จริง</div></div>
+  <section id="paneCount" class="card scanres" hidden>
+    <div id="cntCard"><div class="empty">ยิงบาร์โค้ด หรือคลิกสินค้าในตาราง แล้วใส่จำนวนที่นับได้จริง</div></div>
     <details class="recentbox" id="cntDoneBox"><summary>นับแล้ววันนี้ <span class="hint" id="cntDoneCount"></span></summary><div id="cntDone"></div></details>
   </section>
-</main>
-<main id="viewProd" hidden>
-  <section class="card pform">
-    <div class="phead"><h2 id="pfTitle">เพิ่มสินค้าใหม่</h2><button class="ghost" id="pfReset">ล้างฟอร์ม</button></div>
 
-    <div class="pgrid">
-      <div class="pcol">
-        <div class="sect">สินค้าตัวไหน</div>
-        <div class="field2">
-          <label for="pfCode">บาร์โค้ด <span class="req">*</span></label>
-          <div class="inrow"><input class="tin num" id="pfCode" inputmode="numeric" autocomplete="off" placeholder="ยิงบาร์โค้ด แล้ว Enter"><button class="ghost" id="pfGen">เพิ่มรหัสสินค้า</button></div>
-          <div class="inrow" id="pfGenBox" hidden><button class="ghost" id="pfRand">สุ่มรหัส</button><button class="ghost" id="pfOwn">พิมพ์เอง</button></div>
-          <div id="pfCodeMsg" class="hint"></div>
-        </div>
-        <div class="two">
-          <div class="field2"><label for="pfBrand">ยี่ห้อ</label><input class="tin" id="pfBrand" list="brandList" autocomplete="off" placeholder="เช่น สมา, มีโอ"><datalist id="brandList"></datalist><div class="hint" id="pfBrandMsg"></div></div>
-          <div class="field2"><label for="pfVariant">รุ่น / รส</label><input class="tin" id="pfVariant" autocomplete="off" placeholder="เช่น แมวโต ทูน่า"></div>
-        </div>
-        <div class="field2"><label for="pfSize">ขนาด</label>
-          <div class="inrow"><input class="tin num" id="pfSize" inputmode="decimal" style="flex:0 1 110px" placeholder="1.2"><div class="fchips" id="pfSizeU"></div></div></div>
-      </div>
-
-      <div class="pcol">
-        <div class="sect">จัดหมวด</div>
-        <div class="field2"><span class="lab">สัตว์</span><div class="fchips" id="pfAnimal"></div></div>
-        <div class="field2"><span class="lab">ประเภท</span><div class="fchips" id="pfType"></div></div>
-        <div class="field2"><span class="lab">หน่วยขาย</span><div class="fchips" id="pfUnit"></div></div>
-      </div>
+  <section class="card plist">
+    <div class="psearch">
+      <input class="tin" id="pSearch" type="search" enterkeyhint="search" autocomplete="off" placeholder="ค้นหา: ชื่อ, ยี่ห้อ, บาร์โค้ด หรือ 5 ตัวท้าย">
+      <select class="tin" id="pSort" aria-label="เรียงตาม"><option value="rank">เรียง: ขายดี</option><option value="name">เรียง: ชื่อ</option><option value="recent">เพิ่ม/แก้ล่าสุด</option><option value="low">ควรเช็คราคา</option></select>
+      <button class="ghost" id="camBtn">สแกนด้วยกล้อง</button>
     </div>
-
-    <div class="namebox">
-      <label for="pfName">ชื่อสินค้า <span class="req">*</span> <span class="hint">ระบบตั้งให้จากยี่ห้อ รุ่น/รส ขนาด</span></label>
-      <input class="tin" id="pfName" autocomplete="off">
-      <button class="linkbtn" id="pfAuto" hidden>กลับไปใช้ชื่ออัตโนมัติ</button>
+    <div id="cam" class="cam" hidden></div>
+    <div class="hint" id="scanMsg"></div>
+    <div class="ptable" id="pTable">
+      <table><thead><tr><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>หน่วย</th><th class="r">ราคา</th><th class="r">ต้นทุน</th><th class="r">สต็อก</th></tr></thead><tbody id="pRows"></tbody></table>
     </div>
-
-    <div class="pricebar">
-      <div class="field2"><label for="pfPrice">ราคาขาย <span class="req">*</span></label><input class="tin num big" id="pfPrice" inputmode="decimal" placeholder="0"></div>
-      <div class="field2"><label for="pfCost">ต้นทุน</label><input class="tin num" id="pfCost" inputmode="decimal"></div>
-      <div class="field2"><label for="pfQty">จำนวนที่มี</label><input class="tin num" id="pfQty" inputmode="numeric"></div>
-      <div class="margin" id="pfMargin"></div>
-    </div>
-    <div class="field2"><span class="lab">รับมาจากร้าน</span>
-      <div class="fchips" id="pfSup"></div>
-      <div class="inrow" id="pfSupNewBox" hidden><input class="tin" id="pfSupNew" placeholder="ชื่อร้านใหม่" style="flex:0 1 260px"><button class="ghost" id="pfSupAdd">เพิ่มร้าน</button></div>
-    </div>
-
-    <div id="pfErr" class="notice" hidden style="margin:0"></div>
-    <div class="savebar">
-      <button class="primary" id="pfSave">บันทึก</button>
-      <button class="primary alt" id="pfSaveNext">บันทึก แล้วเพิ่มตัวถัดไป (ใช้ข้อมูลเดิม)</button>
-    </div>
+    <div class="hint" id="pCount"></div>
   </section>
-
-  <details class="card recentbox">
-    <summary>เพิ่ม/แก้ล่าสุด <span class="hint" id="recentCount"></span></summary>
-    <div id="recentList"></div>
-    <div class="empty" id="emptyRecent">ยังไม่ได้เพิ่มหรือแก้สินค้า</div>
-  </details>
 </main>
 
 <main id="viewReport" hidden>
@@ -226,9 +211,8 @@
     <strong>ตั้งค่า</strong>
     <label>ชื่อร้าน (แสดงบนใบเสร็จ)<input id="setShop"></label>
     <label>เบอร์พร้อมเพย์ หรือเลขบัตรประชาชน (สร้าง QR รับโอน)<input id="setPP" inputmode="numeric" placeholder="เช่น 0812345678"></label>
-    <label>ร้านที่รับของประจำ (คั่นด้วยจุลภาค โชว์เป็นปุ่มในหน้าสินค้า)<input id="setSups"></label>
-    <label class="check"><input type="checkbox" id="setAutoPrint"> พิมพ์ใบเสร็จอัตโนมัติหลังรับเงิน (ตั้งแยกแต่ละเครื่อง เปิดเฉพาะคอมที่ต่อเครื่องพิมพ์)</label>
-  </section>
+    <label>ร้านที่รับของประจำ (คั่นด้วยจุลภาค)<input id="setSups"></label>
+      </section>
   <section class="card settings" id="staffBox" hidden>
     <strong>คนที่เข้าระบบได้</strong>
     <p class="hint" style="margin:0">ใส่ Gmail ของคนที่ให้ใช้ระบบ เช่น พ่อ หรือพนักงาน (เจ้าของร้านเท่านั้นที่แก้ส่วนนี้ได้)</p>
@@ -257,6 +241,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=17"></script>
+<script type="module" src="js/app.js?v=18"></script>
 </body>
 </html>

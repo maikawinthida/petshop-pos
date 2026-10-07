@@ -5,9 +5,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, memoryLocalCache, doc, collection, onSnapshot,
-  setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion }
+  setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion, deleteField }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { firebaseConfig } from './config.js?v=17';
+import { firebaseConfig } from './config.js?v=18';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -61,6 +61,7 @@ export function watchCatalog(cb, onErr) {
   return () => unsubs.forEach(u => u());
 }
 export function saveProduct(p) { return setDoc(chunkRef(p.code), { items: { [p.code]: packProduct(p) } }, { merge: true }); }
+export function deleteProduct(code) { return setDoc(chunkRef(code), { items: { [code]: deleteField() } }, { merge: true }); }
 export function patchProduct(code, fields) { return setDoc(chunkRef(code), { items: { [code]: fields } }, { merge: true }); }
 export function logPrice(entry) { return addDoc(collection(db, 'priceLog'), { ...entry, at: serverTimestamp() }); }
 export function watchPriceLog(cb) {
