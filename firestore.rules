@@ -18,5 +18,6 @@ service cloud.firestore {
     match /catalog/{chunk} { allow read, write: if isStaff(); }
     match /sales/{id} { allow read, create, update: if isStaff(); }
     match /priceLog/{id} { allow read, create: if isStaff(); }
+    match /daily/{day} { allow read, write: if isStaff(); }
   }
 }

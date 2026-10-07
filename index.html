@@ -36,6 +36,7 @@
     <button id="tabSell" role="tab" aria-selected="true">ขาย</button>
     <button id="tabProd" role="tab" aria-selected="false">สินค้า</button>
     <button id="tabBills" role="tab" aria-selected="false">บิลวันนี้</button>
+    <button id="tabReport" role="tab" aria-selected="false">รายงาน</button>
   </div>
   <div class="sellers"><span class="lbl">คนขาย</span><span id="sellerChips"></span></div>
   <span class="clock num" id="clock"></span>
@@ -78,6 +79,7 @@
       <button class="pay" data-m="transfer" disabled>โอน QR<small>F3</small></button>
       <button class="pay" data-m="half" disabled>คนละครึ่ง<small>F4</small></button>
     </div>
+    <label class="ptoggle"><input type="checkbox" id="autoPrintSell"> พิมพ์ใบเสร็จทันที</label>
     <div class="actions">
       <button class="ghost" id="holdBtn">เปิดบิลซ้อน <kbd>F6</kbd></button>
       <button class="ghost bad" id="clearBtn">ล้างบิลนี้</button>
@@ -146,6 +148,33 @@
   </details>
 </main>
 
+<main id="viewReport" hidden>
+  <section class="card rctl">
+    <div class="seg big" id="rMode">
+      <button data-m="today" aria-pressed="false">วันนี้</button><button data-m="month" aria-pressed="true">รายเดือน</button><button data-m="year" aria-pressed="false">รายปี</button><button data-m="range" aria-pressed="false">ช่วงวัน</button>
+    </div>
+    <input type="month" id="rMonth" aria-label="เดือน">
+    <select id="rYear" aria-label="ปี" hidden></select>
+    <span id="rRange" hidden><input type="date" id="rFrom" aria-label="ตั้งแต่"> ถึง <input type="date" id="rTo" aria-label="ถึง"></span>
+    <select id="rMethod" aria-label="วิธีจ่าย"><option value="">ทุกวิธีจ่าย</option><option value="cash">เงินสด</option><option value="transfer">โอน</option><option value="half">คนละครึ่ง</option><option value="other">อื่นๆ (โปรแกรมเดิม)</option></select>
+    <select id="rSeller" aria-label="คนขาย"><option value="">ทุกคนขาย</option></select>
+    <button class="ghost" id="rExport">ส่งออก Excel</button>
+  </section>
+  <div class="kpis" id="rKpis"></div>
+  <section class="card rbox">
+    <div class="rhead"><strong id="rChartTitle">ยอดขาย</strong><span class="hint" id="rCompare"></span></div>
+    <div id="rChart" class="rchart"></div>
+  </section>
+  <div class="rgrid">
+    <section class="card rbox"><div class="rhead"><strong>สินค้าขายดี</strong><span class="hint" id="rTopNote"></span></div><div class="cartwrap"><table><thead><tr><th>สินค้า</th><th class="r">ชิ้น</th><th class="r">ยอดขาย</th><th class="r">กำไร</th></tr></thead><tbody id="rTop"></tbody></table></div></section>
+    <section class="card rbox"><div class="rhead"><strong>รายการบิล</strong><span class="hint" id="rBillNote"></span></div><div class="cartwrap rbills"><table><thead><tr><th>วันที่</th><th>เลขบิล</th><th>คนขาย</th><th>จ่าย</th><th class="r">ยอด</th><th></th></tr></thead><tbody id="rBills"></tbody></table></div></section>
+  </div>
+  <details class="card rbox" id="rLowBox">
+    <summary><strong>ควรเช็คราคา</strong> <span class="hint" id="rLowCount"></span></summary>
+    <p class="hint" style="margin:8px 0">สินค้าที่ขายอยู่แต่กำไรต่ำกว่า 10% หรือยังไม่มีต้นทุนในระบบ เรียงตามขายดี</p>
+    <div class="cartwrap"><table><thead><tr><th>สินค้า</th><th class="r">ต้นทุน</th><th class="r">ราคาขาย</th><th class="r">กำไร</th><th></th></tr></thead><tbody id="rLow"></tbody></table></div>
+  </details>
+</main>
 <main id="viewBills" hidden>
   <div class="kpis" id="kpis"></div>
   <section class="card cartwrap">
@@ -172,6 +201,10 @@
     <strong>คนที่เข้าระบบได้</strong>
     <p class="hint" style="margin:0">ใส่ Gmail ของคนที่ให้ใช้ระบบ เช่น พ่อ หรือพนักงาน (เจ้าของร้านเท่านั้นที่แก้ส่วนนี้ได้)</p>
     <label>อีเมล (คั่นด้วยจุลภาค)<input id="setStaff" placeholder="dad@gmail.com"></label>
+    <strong style="margin-top:8px">นำเข้ายอดขายย้อนหลังจากโปรแกรมเดิม</strong>
+    <p class="hint" style="margin:0">เลือกไฟล์ history.json (นำเข้าซ้ำได้ ยอดไม่ซ้อน)</p>
+    <input type="file" id="histFile" accept=".json,application/json">
+    <div class="hint" id="histMsg"></div>
   </section>
   <section class="card settings">
     <strong>บัญชี</strong>

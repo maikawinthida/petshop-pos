@@ -5,7 +5,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, onSnapshot,
-  setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, arrayUnion }
+  setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { firebaseConfig } from './config.js';
 
@@ -61,9 +61,16 @@ export function addBrand(th, en) { return setDoc(doc(db, 'meta', 'brands'), { li
 export async function catalogReady() { const s = await getDoc(doc(db, 'meta', 'info')); return s.exists() && !!s.data().imported; }
 
 /* ---------- sales ---------- */
+// daily/{date} keeps running totals so month/year reports read one doc per day, not every bill
+function dailyDelta(bill, sign) {
+  const cost = bill.items.reduce((s, i) => s + (i.cost || 0) * i.qty, 0);
+  return { date: bill.date, bills: increment(sign), net: increment(sign * bill.net), cost: increment(sign * cost),
+    m: { [bill.method]: increment(sign * bill.net) }, s: { [bill.seller || '-']: increment(sign * bill.net) } };
+}
 export function saveSale(bill) {
   const b = writeBatch(db);
   b.set(doc(db, 'sales', bill.id), { ...bill, createdAt: serverTimestamp() });
+  b.set(doc(db, 'daily', bill.date), dailyDelta(bill, 1), { merge: true });
   const byChunk = {};
   for (const it of bill.items) { if (!it.known) continue; const c = chunkOf(it.code); (byChunk[c] ||= {})[it.code] = { st: increment(-it.qty) }; }
   for (const [c, items] of Object.entries(byChunk)) b.set(doc(db, 'catalog', c), { items }, { merge: true });
@@ -72,6 +79,7 @@ export function saveSale(bill) {
 export function cancelSale(bill) {
   const b = writeBatch(db);
   b.set(doc(db, 'sales', bill.id), { cancelled: true, cancelledAt: serverTimestamp() }, { merge: true });
+  b.set(doc(db, 'daily', bill.date), dailyDelta(bill, -1), { merge: true });
   const byChunk = {};
   for (const it of bill.items) { if (!it.known) continue; const c = chunkOf(it.code); (byChunk[c] ||= {})[it.code] = { st: increment(it.qty) }; }
   for (const [c, items] of Object.entries(byChunk)) b.set(doc(db, 'catalog', c), { items }, { merge: true });
@@ -80,6 +88,24 @@ export function cancelSale(bill) {
 export function watchSales(date, cb, onErr) {
   return onSnapshot(query(collection(db, 'sales'), where('date', '==', date)), { includeMetadataChanges: true },
     s => cb(s.docs.map(d => ({ ...d.data(), id: d.id, pending: d.metadata.hasPendingWrites }))), onErr);
+}
+
+export async function getSalesRange(from, to) {
+  const s = await getDocs(query(collection(db, 'sales'), where('date', '>=', from), where('date', '<=', to)));
+  return s.docs.map(d => ({ ...d.data(), id: d.id }));
+}
+export async function getDaily(from, to) {
+  const s = await getDocs(query(collection(db, 'daily'), where('date', '>=', from), where('date', '<=', to)));
+  return s.docs.map(d => d.data());
+}
+// old program's history, stored apart from live totals (field "lg") so importing twice never double-counts
+export async function importHistory(days, progress) {
+  for (let i = 0; i < days.length; i += 400) {
+    const b = writeBatch(db);
+    for (const d of days.slice(i, i + 400)) b.set(doc(db, 'daily', d.date), { date: d.date, lg: { bills: d.bills, net: d.net, cost: d.cost, m: d.m || {} } }, { merge: true });
+    await b.commit(); progress?.(Math.min(i + 400, days.length), days.length);
+  }
+  await setDoc(doc(db, 'meta', 'info'), { history: days.length, historyFrom: days[0]?.date || '' }, { merge: true });
 }
 
 /* ---------- first-time import ---------- */

@@ -332,8 +332,9 @@ function receiptHTML(b) {
 }
 function showReceipt(b, fresh) {
   const s = openModal(`<h2>${fresh ? (b.method === 'cash' ? 'ทอน ' + fmt(b.change) + ' บาท' : 'รับเงินแล้ว') : 'ใบเสร็จ ' + esc(b.id)}</h2>${receiptHTML(b)}
-    <div class="mrow"><button class="ghost" id="rPrint">พิมพ์ใบเสร็จ</button><button class="primary" id="rOk">${fresh ? (S.tabs.length > 1 || T().cart.length ? 'กลับไปบิลที่ค้างอยู่ (Enter)' : 'บิลถัดไป (Enter)') : 'ปิด'}</button></div>`);
+    <div class="mrow">${fresh ? '' : '<button class="ghost" id="rCopy">คัดลอกเป็นบิลใหม่</button>'}<button class="ghost" id="rPrint">พิมพ์ใบเสร็จ</button><button class="primary" id="rOk">${fresh ? (S.tabs.length > 1 || T().cart.length ? 'กลับไปบิลที่ค้างอยู่ (Enter)' : 'บิลถัดไป (Enter)') : 'ปิด'}</button></div>`);
   s.querySelector('#rPrint').onclick = () => printReceipt(b);
+  s.querySelector('#rCopy')?.addEventListener('click', () => copyBill(b));
   const ok = s.querySelector('#rOk'); ok.onclick = closeModal; ok.focus();
 }
 /* Thermal receipt: 58 mm paper, about 48 mm printable */
@@ -379,10 +380,10 @@ function renderBills() {
   $('emptyPrices').hidden = S.priceLog.length > 0;
 }
 function tab(w) {
-  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
-  if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else focusQ();
+  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
+  if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else if (w === 'report') { fillSellerFilter(); loadReport(); } else focusQ();
 }
-$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills');
+$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report');
 
 /* ---------- settings ---------- */
 function fillSettings() {
@@ -396,7 +397,7 @@ function saveSet() {
   S.settings = s; store.set('settingsCache', s); DB.saveMeta('settings', s).catch(fail); renderSellers();
 }
 ['setShop', 'setPP', 'setSellers', 'setSups'].forEach(id => $(id).onchange = () => { saveSet(); pfDrawChips(); toast('บันทึกแล้ว'); });
-$('setAutoPrint').onchange = e => { S.autoPrint = e.target.checked; store.set('autoPrint', S.autoPrint); toast(S.autoPrint ? 'เครื่องนี้จะพิมพ์ใบเสร็จอัตโนมัติ' : 'ปิดพิมพ์อัตโนมัติที่เครื่องนี้แล้ว'); };
+$('setAutoPrint').onchange = e => { setAutoPrint(e.target.checked); toast(S.autoPrint ? 'เครื่องนี้จะพิมพ์ใบเสร็จอัตโนมัติ' : 'ปิดพิมพ์อัตโนมัติที่เครื่องนี้แล้ว'); };
 $('setStaff').onchange = e => { const emails = splitList(e.target.value).map(x => x.toLowerCase()); DB.saveMeta('staff', { emails }).then(() => toast('บันทึกรายชื่อแล้ว')).catch(fail); };
 $('logoutBtn').onclick = () => confirmBox('ออกจากระบบเครื่องนี้?', 'ออกจากระบบ', () => DB.logout());
 
@@ -518,6 +519,172 @@ function watchToday() {
 }
 const tick = () => { const d = new Date(); $('clock').textContent = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); if (S.user) watchToday(); };
 
+/* ---------- reports ---------- */
+const R = { mode: 'month', data: null, bills: null, busy: 0 };
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const be = y => +y + 543;
+function rInit() {
+  const now = new Date();
+  $('rMonth').value = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+  $('rYear').innerHTML = Array.from({ length: now.getFullYear() - 2022 }, (_, i) => now.getFullYear() - i).map(y => `<option value="${y}">ปี ${be(y)}</option>`).join('');
+  $('rTo').value = today(); const f = new Date(now); f.setDate(f.getDate() - 6); $('rFrom').value = ymd(f);
+  $('rMode').querySelectorAll('button').forEach(b => b.onclick = () => { R.mode = b.dataset.m; $('rMode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); rControls(); loadReport(); });
+  ['rMonth', 'rYear', 'rFrom', 'rTo'].forEach(id => $(id).onchange = loadReport);
+  ['rMethod', 'rSeller'].forEach(id => $(id).onchange = drawReport);
+  $('rExport').onclick = exportReport; rControls();
+}
+function rControls() { $('rMonth').hidden = R.mode !== 'month'; $('rYear').hidden = R.mode !== 'year'; $('rRange').hidden = R.mode !== 'range'; }
+function rPeriod() {
+  if (R.mode === 'today') { const d = today(); return { from: d, to: d, title: 'วันนี้' }; }
+  if (R.mode === 'month') { const [y, m] = $('rMonth').value.split('-').map(Number); const last = new Date(y, m, 0).getDate(); return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(last)}`, title: `${TH_MON[m - 1]} ${be(y)}` }; }
+  if (R.mode === 'year') { const y = +$('rYear').value; return { from: `${y}-01-01`, to: `${y}-12-31`, title: `ปี ${be(y)}` }; }
+  let a = $('rFrom').value, b = $('rTo').value; if (a > b) [a, b] = [b, a];
+  return { from: a, to: b, title: `${a.split('-').reverse().join('/')} – ${b.split('-').reverse().join('/')}` };
+}
+const shiftYear = s => (+s.slice(0, 4) - 1) + s.slice(4);
+const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5) + 1;
+async function loadReport() {
+  const per = rPeriod(); const ticket = ++R.busy;
+  $('rKpis').innerHTML = '<div class="hint">กำลังโหลด…</div>';
+  try {
+    const span = daysBetween(per.from, per.to);
+    const [days, prev, bills] = await Promise.all([
+      DB.getDaily(per.from, per.to), DB.getDaily(shiftYear(per.from), shiftYear(per.to)),
+      span <= 62 ? DB.getSalesRange(per.from, per.to) : Promise.resolve(null)]);
+    if (ticket !== R.busy) return;
+    R.data = { per, days, prev, span }; R.bills = bills; drawReport();
+  } catch (e) { console.error(e); $('rKpis').innerHTML = `<div class="notice">โหลดรายงานไม่สำเร็จ ${e.code === 'permission-denied' ? '(ต้องอัปเดตกฎความปลอดภัยใน Firebase ให้มีส่วน daily)' : ''}</div>`; }
+}
+// one day's figures, combining live totals and the old program's history
+function dayVal(d, method, seller) {
+  const lg = d.lg || {};
+  if (seller) { const v = d.s?.[seller] || 0; return { net: v, cost: null, bills: null }; }
+  if (method) { const v = (d.m?.[method] || 0) + (lg.m?.[method] || 0); return { net: v, cost: null, bills: null }; }
+  return { net: (d.net || 0) + (lg.net || 0), cost: (d.cost || 0) + (lg.cost || 0), bills: (d.bills || 0) + (lg.bills || 0) };
+}
+function sumDays(days, method, seller) {
+  let net = 0, cost = 0, bills = 0, costKnown = true, billsKnown = true;
+  for (const d of days) { const v = dayVal(d, method, seller); net += v.net; if (v.cost === null) costKnown = false; else cost += v.cost; if (v.bills === null) billsKnown = false; else bills += v.bills; }
+  return { net, cost: costKnown ? cost : null, bills: billsKnown ? bills : null };
+}
+function drawReport() {
+  if (!R.data) return; const { per, days, prev, span } = R.data;
+  const method = $('rMethod').value, seller = $('rSeller').value;
+  let t = sumDays(days, method, seller);
+  // with a seller or method chosen and bills loaded, count from the bills themselves (gives cost too)
+  const fb = R.bills ? R.bills.filter(b => !b.cancelled && (!method || b.method === method) && (!seller || b.seller === seller)) : null;
+  if ((method || seller) && fb && !(method === 'other')) {
+    const lgNet = method ? days.reduce((s, d) => s + (d.lg?.m?.[method] || 0), 0) : 0;
+    t = { net: fb.reduce((s, b) => s + b.net, 0), cost: fb.reduce((s, b) => s + b.items.reduce((x, i) => x + (i.cost || 0) * i.qty, 0), 0), bills: fb.length };
+    if (lgNet) { t.net += lgNet; t.cost = null; t.bills = null; }
+  }
+  // compare like with like: if the period runs past today, compare only up to the same date last year
+  const upto = shiftYear(per.to < today() ? per.to : today());
+  const pv = sumDays(prev.filter(d => d.date <= upto), method, seller).net;
+  const profit = t.cost === null ? null : t.net - t.cost;
+  const pct = pv ? Math.round((t.net - pv) / pv * 100) : null;
+  $('rKpis').innerHTML = [
+    ['ยอดขาย ' + per.title, fmt0(t.net), pct === null ? '' : `<div class="sub ${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '+' : ''}${pct}% จากปีก่อน ช่วงวันเดียวกัน</div>`],
+    ['ต้นทุน', t.cost === null ? '—' : fmt0(t.cost), ''],
+    ['กำไร', profit === null ? '—' : fmt0(profit), profit === null || !t.net ? '' : `<div class="sub">${Math.round(profit / t.net * 100)}% ของยอดขาย</div>`],
+    ['จำนวนบิล', t.bills === null ? '—' : t.bills.toLocaleString(), t.bills ? `<div class="sub">เฉลี่ย ${fmt0(Math.round(t.net / t.bills))} บาท/บิล</div>` : '']
+  ].map(([k, v, s]) => `<div class="card kpi"><div class="k">${k}</div><div class="v">${v}</div>${s}</div>`).join('');
+  $('rCompare').textContent = pv ? `ปีก่อน ช่วงวันเดียวกัน ${fmt0(pv)} บาท` : '';
+  drawChart(per, days, prev, method, seller, span);
+  drawTop(fb, span); drawBillList(fb, span); drawLow();
+}
+function drawChart(per, days, prev, method, seller, span) {
+  const byMonth = span > 62; const buckets = [];
+  if (byMonth) { let y = +per.from.slice(0, 4), m = +per.from.slice(5, 7); const ey = +per.to.slice(0, 4), em = +per.to.slice(5, 7); while (y < ey || (y === ey && m <= em)) { buckets.push({ key: `${y}-${pad(m)}`, label: TH_MON[m - 1] }); m++; if (m > 12) { m = 1; y++; } } }
+  else { const d = new Date(per.from); for (let i = 0; i < span; i++) { buckets.push({ key: ymd(d), label: String(d.getDate()) }); d.setDate(d.getDate() + 1); } }
+  const val = {}, pval = {}; const k = s => byMonth ? s.slice(0, 7) : s;
+  for (const d of days) val[k(d.date)] = (val[k(d.date)] || 0) + dayVal(d, method, seller).net;
+  for (const d of prev) { const key = k((+d.date.slice(0, 4) + 1) + d.date.slice(4)); pval[key] = (pval[key] || 0) + dayVal(d, method, seller).net; }
+  const max = Math.max(1, ...buckets.map(b => Math.max(val[b.key] || 0, pval[b.key] || 0)));
+  const W = Math.max(560, buckets.length * 26), H = 200, padL = 52, padB = 22, bw = (W - padL - 8) / buckets.length;
+  const y = v => H - padB - (v / max) * (H - padB - 10);
+  const ticks = [0, max / 2, max].map(v => `<line x1="${padL}" x2="${W - 4}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${v >= 1000 ? Math.round(v / 1000) + 'k' : Math.round(v)}</text>`).join('');
+  const bars = buckets.map((b, i) => { const v = val[b.key] || 0, pvv = pval[b.key] || 0, x = padL + i * bw;
+    return `<g><title>${b.label}: ${fmt0(v)} บาท${pvv ? ` (ปีก่อน ${fmt0(pvv)})` : ''}</title>
+      ${pvv ? `<rect x="${x + bw * .12}" y="${y(pvv)}" width="${bw * .76}" height="${H - padB - y(pvv)}" fill="var(--line)" rx="2"/>` : ''}
+      <rect x="${x + bw * .26}" y="${y(v)}" width="${bw * .48}" height="${H - padB - y(v)}" fill="var(--accent)" rx="2"/>
+      ${buckets.length <= 31 || i % 2 === 0 ? `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${b.label}</text>` : ''}</g>`; }).join('');
+  $('rChartTitle').textContent = byMonth ? 'ยอดขายรายเดือน (สีเทา = ปีก่อน)' : 'ยอดขายรายวัน (สีเทา = ปีก่อน)';
+  $('rChart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="กราฟยอดขาย">${ticks}${bars}</svg>`;
+}
+function drawTop(fb, span) {
+  const tb = $('rTop'); tb.innerHTML = '';
+  if (!fb) { $('rTopNote').textContent = 'เลือกช่วงไม่เกิน 62 วันเพื่อดูสินค้าขายดี'; return; }
+  const agg = {};
+  for (const b of fb) for (const i of b.items) { const a = agg[i.code] ||= { name: i.name, qty: 0, net: 0, profit: 0, costOk: true }; a.qty += i.qty; a.net += i.price * i.qty; a.profit += (i.price - (i.cost || 0)) * i.qty; if (!i.cost) a.costOk = false; }
+  const top = Object.values(agg).sort((a, b) => b.net - a.net).slice(0, 15);
+  $('rTopNote').textContent = top.length ? 'เฉพาะบิลในระบบใหม่' : 'ยังไม่มีบิลในช่วงนี้';
+  for (const a of top) tb.insertAdjacentHTML('beforeend', `<tr><td>${esc(a.name)}</td><td class="r num">${a.qty}</td><td class="r num">${fmt0(a.net)}</td><td class="r num">${a.costOk ? fmt0(a.profit) : '<span class="hint">ไม่มีต้นทุน</span>'}</td></tr>`);
+}
+function drawBillList(fb, span) {
+  const tb = $('rBills'); tb.innerHTML = '';
+  if (!R.bills) { $('rBillNote').textContent = 'เลือกช่วงไม่เกิน 62 วันเพื่อดูรายบิล'; return; }
+  const method = $('rMethod').value, seller = $('rSeller').value;
+  const list = R.bills.filter(b => (!method || b.method === method) && (!seller || b.seller === seller)).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  $('rBillNote').textContent = `${list.length.toLocaleString()} บิล (บิลจากโปรแกรมเดิมดูได้ที่โปรแกรมเดิม)`;
+  for (const b of list.slice(0, 400)) {
+    const tr = document.createElement('tr'); if (b.cancelled) tr.className = 'cancel';
+    tr.innerHTML = `<td class="num">${b.date.slice(8)}/${b.date.slice(5, 7)} ${b.time}</td><td class="num">${esc(b.id)}</td><td>${esc(b.seller)}</td><td><span class="pill">${METHOD[b.method] || b.method}</span></td><td class="r num">${fmt(b.net)}</td><td><button class="ghost">ดู</button></td>`;
+    tr.querySelector('button').onclick = () => showReceipt(b, false); tb.appendChild(tr);
+  }
+}
+function drawLow() {
+  const low = LIST.filter(p => p.rank > 0 && p.price > 0 && (!p.cost || (p.price - p.cost) / p.price < 0.10)).sort((a, b) => b.rank - a.rank);
+  $('rLowCount').textContent = `(${low.length} รายการ)`;
+  const tb = $('rLow'); tb.innerHTML = '';
+  for (const p of low.slice(0, 150)) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${esc(p.name)}<div class="hint num">${esc(p.code)}</div></td><td class="r num">${p.cost ? fmt0(p.cost) : '<span class="hint">ไม่มี</span>'}</td><td class="r num">${fmt0(p.price)}</td><td class="r num">${p.cost ? Math.round((p.price - p.cost) / p.price * 100) + '%' : '—'}</td><td><button class="editb">แก้</button></td>`;
+    tr.querySelector('button').onclick = () => editProduct(p.code); tb.appendChild(tr);
+  }
+}
+function exportReport() {
+  if (!R.data) return; const { per, days } = R.data;
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = [['รายงานยอดขาย', per.title], [], ['วันที่', 'จำนวนบิล', 'ยอดขาย', 'ต้นทุน', 'กำไร', 'เงินสด', 'โอน', 'คนละครึ่ง', 'อื่นๆ']];
+  for (const d of days.slice().sort((a, b) => a.date.localeCompare(b.date))) {
+    const v = dayVal(d, '', ''); const m = k => (d.m?.[k] || 0) + (d.lg?.m?.[k] || 0);
+    rows.push([d.date, v.bills, v.net, v.cost, Math.round((v.net - v.cost) * 100) / 100, m('cash'), m('transfer'), m('half'), m('other')]);
+  }
+  if (R.bills) {
+    rows.push([], ['รายบิล'], ['วันที่', 'เวลา', 'เลขบิล', 'คนขาย', 'วิธีจ่าย', 'ยอด', 'ต้นทุน', 'สถานะ', 'รายการ']);
+    for (const b of R.bills.slice().sort((a, c) => (a.ts || 0) - (c.ts || 0)))
+      rows.push([b.date, b.time, b.id, b.seller, METHOD[b.method] || b.method, b.net, b.items.reduce((x, i) => x + (i.cost || 0) * i.qty, 0), b.cancelled ? 'ยกเลิก' : '', b.items.map(i => `${i.name} x${i.qty}`).join(' | ')]);
+  }
+  const csv = '﻿' + rows.map(r => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `รายงานยอดขาย_${per.from}_${per.to}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function fillSellerFilter() { const v = $('rSeller').value; $('rSeller').innerHTML = '<option value="">ทุกคนขาย</option>' + S.settings.sellers.map(n => `<option>${esc(n)}</option>`).join(''); $('rSeller').value = v; }
+rInit();
+
+/* ---------- copy an old bill into a new one ---------- */
+function copyBill(b) {
+  if (T().cart.length) { S.tabs.push(newTab()); S.cur = S.tabs.length - 1; }
+  for (const i of b.items) { const p = P.get(i.code); T().cart.push({ code: i.code, name: p?.name || i.name, unit: p?.unit || i.unit, price: p ? p.price : i.price, qty: i.qty }); }
+  closeModal(); tab('sell'); render(); toast('คัดลอกบิลแล้ว ราคาเป็นราคาปัจจุบัน');
+}
+
+/* ---------- history import (owner) ---------- */
+$('histFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text()); if (data.kind !== 'history' || !Array.isArray(data.days)) throw new Error('ไฟล์ไม่ใช่ยอดขายย้อนหลัง');
+    await DB.importHistory(data.days, (n, all) => $('histMsg').textContent = `กำลังนำเข้า ${n}/${all} วัน…`);
+    $('histMsg').textContent = `นำเข้ายอดขายย้อนหลัง ${data.days.length.toLocaleString()} วันเรียบร้อย ดูได้ที่แท็บรายงาน`;
+  } catch (err) { console.error(err); $('histMsg').textContent = 'นำเข้าไม่สำเร็จ: ' + (err.code === 'permission-denied' ? 'ต้องอัปเดตกฎความปลอดภัยใน Firebase ก่อน' : (err.code || err.message)); }
+};
+
+/* ---------- print-now toggle on the sell screen ---------- */
+function setAutoPrint(v) { S.autoPrint = v; store.set('autoPrint', v); $('autoPrintSell').checked = v; $('setAutoPrint').checked = v; }
+$('autoPrintSell').onchange = e => { setAutoPrint(e.target.checked); focusQ(); };
+
 /* ---------- start-up: sign in, check access, first import, then load ---------- */
 const gate = (msg, { login = false, importer = false, logout = false } = {}) => {
   $('gate').hidden = false; $('appRoot').hidden = true; $('gateMsg').textContent = msg;
@@ -552,7 +719,7 @@ function startData() {
 function showApp() {
   appShown = true; store.set('ready', true);
   $('gate').hidden = true; $('appRoot').hidden = false;
-  rebuildCatalog(); renderSellers(); pfDrawChips(); renderRecent(); fillSettings(); render(); setSync(); focusQ();
+  rebuildCatalog(); renderSellers(); pfDrawChips(); renderRecent(); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync(); focusQ();
 }
 function noAccess() {
   unsubs.forEach(u => u()); unsubs = [];

@@ -186,3 +186,19 @@ tr.cancel td:last-child{text-decoration:none}
 .settings .check{display:flex;gap:8px;align-items:center;color:var(--ink)}
 .settings .check input{width:20px;height:20px}
 .printframe{position:fixed;width:0;height:0;border:0;right:0;bottom:0}
+/* reports */
+#viewReport{display:grid;gap:12px}
+.rctl{padding:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rctl input,.rctl select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.seg.big button{padding:8px 14px;font-weight:600}
+.rbox{padding:12px}
+.rhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.rchart{overflow-x:auto}
+.rchart svg{display:block;min-width:100%}
+.rgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:900px){.rgrid{grid-template-columns:minmax(0,1fr)}}
+.rbills{max-height:520px;overflow:auto}
+.kpi .sub{font-size:13px;color:var(--muted)}
+.up{color:var(--accent)}.down{color:var(--bad)}
+.ptoggle{display:flex;align-items:center;gap:8px;font-weight:600}
+.ptoggle input{width:20px;height:20px}
