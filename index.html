@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=21">
+<link rel="stylesheet" href="css/app.css?v=22">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -119,7 +119,7 @@
         <div class="field2 span4"><label for="pfName">ชื่อสินค้า <span class="req">*</span> <button type="button" class="linkbtn" id="pfAuto" hidden>ใช้ชื่ออัตโนมัติ</button></label>
           <input class="tin bold" id="pfName" autocomplete="off" placeholder="ตั้งให้อัตโนมัติจาก ยี่ห้อ + รุ่น/รส + ขนาด"></div>
 
-        <div class="field2 span2"><label for="pfBrand">ยี่ห้อ</label><input class="tin" id="pfBrand" list="brandList" autocomplete="off" placeholder="เช่น สมา, มีโอ"><datalist id="brandList"></datalist><div class="hint" id="pfBrandMsg"></div></div>
+        <div class="field2 span2 brandbox"><label for="pfBrand">ยี่ห้อ</label><input class="tin" id="pfBrand" autocomplete="off" placeholder="พิมพ์ เช่น sm, สม, โปรแคท"><div class="bsug drop" id="pfBrandSug" hidden></div><div class="hint" id="pfBrandMsg"></div><input class="tin" id="pfBrandEn" autocomplete="off" placeholder="ชื่อภาษาอังกฤษของยี่ห้อนี้ (ถ้ามี)" hidden></div>
         <div class="field2 span2"><label for="pfVariant">รุ่น / รส</label><input class="tin" id="pfVariant" autocomplete="off" placeholder="เช่น แมวโต ทูน่า"></div>
         <div class="field2 span2"><label for="pfSize">ขนาด</label><div class="inrow nowrap"><input class="tin num" id="pfSize" inputmode="decimal" placeholder="1.2"><select class="tin" id="pfSizeU" aria-label="หน่วยขนาด"></select></div></div>
 
@@ -162,6 +162,7 @@
       <select class="tin" id="pSort" aria-label="เรียงตาม"><option value="rank">เรียง: ขายดี</option><option value="name">เรียง: ชื่อ</option><option value="recent">เพิ่ม/แก้ล่าสุด</option><option value="low">ควรเช็คราคา</option></select>
       <button class="cambtn" id="camBtn"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span id="camLbl">สแกนด้วยกล้อง</span></button>
     </div>
+    <div class="bsug" id="pBrandSug" hidden></div>
     <div id="cam" class="cam" hidden></div>
     <div class="hint" id="scanMsg"></div>
     <div class="ptable" id="pTable">
@@ -245,6 +246,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=21"></script>
+<script type="module" src="js/app.js?v=22"></script>
 </body>
 </html>

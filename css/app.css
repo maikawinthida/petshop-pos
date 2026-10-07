@@ -308,3 +308,14 @@ tr.cancel td:last-child{text-decoration:none}
 /* read-only form: hide hint text so empty boxes don't look filled in */
 .pfields:disabled .tin::placeholder{color:transparent}
 @media (max-width:700px){.pbtns .pb{flex:1 1 30%;padding:10px 6px}.nextchk{margin-left:0;flex-basis:100%}}
+
+/* brand suggestions */
+.bsug{display:flex;flex-wrap:wrap;gap:6px}
+.bchip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:14px;font-weight:600;cursor:pointer}
+.bchip .hint{font-weight:400;margin-left:4px}
+.bchip:hover{background:var(--accent-soft);border-color:var(--accent)}
+.bchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.bchip.on b{margin-left:6px}
+.brandbox{position:relative}
+.bsug.drop{position:absolute;left:0;right:0;top:100%;z-index:6;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 20px rgb(0 0 0 / .15);padding:8px;margin-top:-18px}
+#fbs{padding:0 2px}

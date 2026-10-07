@@ -7,7 +7,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAut
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, memoryLocalCache, doc, collection, onSnapshot,
   setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion, deleteField }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { firebaseConfig } from './config.js?v=21';
+import { firebaseConfig } from './config.js?v=22';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -71,7 +71,15 @@ export function watchPriceLog(cb) {
 /* ---------- meta: settings, brands, staff ---------- */
 export function watchMeta(name, cb, onErr) { return onSnapshot(doc(db, 'meta', name), s => cb(s.exists() ? s.data() : null), onErr); }
 export function saveMeta(name, data) { return setDoc(doc(db, 'meta', name), data, { merge: true }); }
-export function addBrand(th, en) { return setDoc(doc(db, 'meta', 'brands'), { list: arrayUnion({ th, en: en || '' }) }, { merge: true }); }
+export function addBrand(th, en) { return setDoc(doc(db, 'meta', 'brands'), { list: arrayUnion({ th, en: en || '', al: [] }) }, { merge: true }); }
+export function setBrands(list) { return setDoc(doc(db, 'meta', 'brands'), { list }); }
+export async function getMeta(name) { const s = await getDoc(doc(db, 'meta', name)); return s.exists() ? s.data() : null; }
+// several product fields at once, grouped into one write per catalog chunk
+export async function patchMany(map) {
+  const byChunk = {};
+  for (const [code, f] of Object.entries(map)) (byChunk[chunkOf(code)] ||= {})[code] = f;
+  for (const [c, items] of Object.entries(byChunk)) await setDoc(doc(db, 'catalog', c), { items }, { merge: true });
+}
 export async function catalogReady() { const s = await getDoc(doc(db, 'meta', 'info')); return s.exists() && !!s.data().imported; }
 
 /* ---------- sales ---------- */

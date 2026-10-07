@@ -1,11 +1,32 @@
-import * as DB from './db.js?v=21';
-import { OWNER_EMAIL } from './config.js?v=21';
+import * as DB from './db.js?v=22';
+import { OWNER_EMAIL } from './config.js?v=22';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=22';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
 let BRANDS = [];                          // [th, en, count]
 const norm = s => String(s ?? '').toLowerCase().replace(/\s+/g, '');
-function mkKey(o) { const b = BRANDS[o.brand]; return norm(o.name + ' ' + o.code + (b ? ' ' + b[0] + ' ' + b[1] : '')); }
+function mkKey(o) { const b = BRANDS[o.brand]; return norm(o.name + ' ' + o.code + (b ? ' ' + b[0] + ' ' + b[1] + ' ' + (b[3] || []).join(' ') : '')); }
+/* brands that match what's typed, in Thai, English or a short form ("sm", "สม" → สมาร์ทฮาร์ท) */
+function brandSuggest(q, max = 8) {
+  const nq = norm(q); if (!nq) return [];
+  const out = [];
+  BRANDS.forEach((b, i) => {
+    const names = [b[0], b[1], ...(b[3] || [])].map(norm).filter(Boolean);
+    const score = names.some(n => n.startsWith(nq)) ? 2 : (nq.length >= 2 && names.some(n => n.includes(nq))) ? 1 : 0;
+    if (score) out.push([score, b[2] || 0, i]);
+  });
+  return out.sort((a, b) => b[0] - a[0] || b[1] - a[1]).slice(0, max).map(x => x[2]);
+}
+const brandLabel = i => { const b = BRANDS[i]; return b ? `${b[0]}${b[1] ? ' · ' + b[1] : ''}` : ''; };
+function drawBrandSug(box, list, onPick, active) {
+  box.innerHTML = '';
+  if (active >= 0 && BRANDS[active]) {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'bchip on'; c.innerHTML = `ยี่ห้อ: ${esc(brandLabel(active))} <b>✕</b>`; c.onclick = () => onPick(-1); box.appendChild(c);
+  }
+  for (const i of list) { if (i === active) continue; const c = document.createElement('button'); c.type = 'button'; c.className = 'bchip'; c.innerHTML = `${esc(brandLabel(i))} <span class="hint">${BRANDS[i][2] || 0}</span>`; c.onclick = () => onPick(i); box.appendChild(c); }
+  box.hidden = !box.children.length;
+}
 
 const store = {
   get(k, d) { try { const v = localStorage.getItem('pos.' + k); return v ? JSON.parse(v) : d } catch (e) { return d } },
@@ -189,7 +210,7 @@ function notFound(code) {
   $('nName').focus();
   $('addForm').onsubmit = e => {
     e.preventDefault();
-    const p = { code, name: $('nName').value.trim(), unit: $('nUnit').value.trim(), price: parseFloat($('nPrice').value) || 0, rank: 0, brand: -1, type: 'other', animal: '', big: 0, cost: 0, supplier: '' };
+    const p = { code, name: $('nName').value.trim(), unit: $('nUnit').value.trim(), price: parseFloat($('nPrice').value) || 0, rank: 0, brand: brandFromName($('nName').value), type: 'other', animal: '', big: 0, cost: 0, supplier: '' };
     p.key = mkKey(p); P.set(code, p); LIST.push(p); DB.saveProduct(p).catch(fail);
     addItem(p); toast('เพิ่มสินค้าใหม่แล้ว'); focusQ();
   };
@@ -227,14 +248,15 @@ function filterF() {
 function chipRow(list, key) { return list.map(([v, l]) => `<button class="chip" data-k="${key}" data-v="${v}" aria-pressed="${F[key] === v}">${l}</button>`).join(''); }
 function openFinder(q) {
   Object.assign(F, { q, brand: '', type: '', animal: '', sel: 0, added: 0 });
-  const nq = norm(q); const bi = nq.length >= 2 ? BRANDS.findIndex(b => norm(b[0]).startsWith(nq) || (b[1] && norm(b[1]).startsWith(nq))) : -1;
-  if (bi >= 0) { F.brand = String(bi); F.q = ''; }
+  const sug = q.trim().length >= 2 ? brandSuggest(q) : [];
+  if (sug.length === 1) { F.brand = String(sug[0]); F.q = ''; }
   const opts = BRANDS.map((b, i) => [i, b]).filter(([, b]) => b[2]).sort((a, b) => a[1][0].localeCompare(b[1][0], 'th')).map(([i, b]) => `<option value="${i}">${esc(b[0])} ${esc(b[1])} (${b[2]})</option>`).join('');
   const s = openModal(`<div class="fhead">
       <div class="frow"><input type="search" id="fq" placeholder="พิมพ์ชื่อ ยี่ห้อ หรือบาร์โค้ด" autocomplete="off" value="${esc(F.q)}">
         <select id="fb" aria-label="ยี่ห้อ"><option value="">ทุกยี่ห้อ</option>${opts}</select>
         <select id="fs" aria-label="เรียงตาม"><option value="rank">เรียง: ขายดี</option><option value="name">เรียง: ชื่อ</option><option value="price">เรียง: ราคาน้อย→มาก</option><option value="pricedesc">เรียง: ราคามาก→น้อย</option></select>
         <button class="closeb" id="fclose" aria-label="ปิด"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>ปิด <kbd>Esc</kbd></button></div>
+      <div class="bsug" id="fbs" hidden></div>
       <div class="frow"><span class="flabel">ประเภท</span><div class="fchips">${chipRow(TYPES, 'type')}</div></div>
       <div class="frow"><span class="flabel">สัตว์</span><div class="fchips">${chipRow(ANIMALS, 'animal')}</div></div>
     </div>
@@ -242,8 +264,12 @@ function openFinder(q) {
     <div class="ffoot"><span class="hint" id="fcount"></span><span class="hint">↑↓ เลือก · Enter ใส่บิลแล้วปิด · ปุ่ม "ใส่บิล" ใส่ต่อได้หลายตัว</span></div>`, 'finder');
   s.querySelector('#fb').value = F.brand;
   const draw = () => { filterF(); drawRows(); };
-  s.querySelector('#fq').oninput = e => { F.q = e.target.value; draw(); };
-  s.querySelector('#fb').onchange = e => { F.brand = e.target.value; draw(); s.querySelector('#fq').focus(); };
+  const sugDraw = () => drawBrandSug(s.querySelector('#fbs'), F.q.trim().length >= 1 && !/^\d+$/.test(F.q.trim()) ? brandSuggest(F.q) : [], i => {
+    F.brand = i >= 0 ? String(i) : ''; s.querySelector('#fb').value = F.brand; if (i >= 0) { F.q = ''; s.querySelector('#fq').value = ''; } sugDraw(); draw(); s.querySelector('#fq').focus();
+  }, F.brand === '' ? -1 : +F.brand);
+  s.querySelector('#fq').oninput = e => { F.q = e.target.value; sugDraw(); draw(); };
+  sugDraw();
+  s.querySelector('#fb').onchange = e => { F.brand = e.target.value; sugDraw(); draw(); s.querySelector('#fq').focus(); };
   s.querySelector('#fs').onchange = e => { F.sort = e.target.value; draw(); };
   s.querySelector('#fclose').onclick = closeModal;
   s.querySelectorAll('.fchips .chip').forEach(c => c.onclick = () => { F[c.dataset.k] = c.dataset.v; s.querySelectorAll(`.chip[data-k="${c.dataset.k}"]`).forEach(x => x.setAttribute('aria-pressed', x === c)); draw(); s.querySelector('#fq').focus(); });
@@ -442,7 +468,7 @@ const UNITS = ['ถุง', 'กระสอบ', 'ซอง', 'กระป๋�
 // mode: empty (nothing chosen) · view (row chosen, read-only) · edit (changing a product) · new (adding one)
 const PF = { code: '', mode: 'empty', nameAuto: true };
 const supList = () => S.settings.suppliers || [];
-function brandIndex(v) { const n = norm(v); if (!n) return -1; return BRANDS.findIndex(b => norm(b[0]) === n || (b[1] && norm(b[1]) === n)); }
+function brandIndex(v) { const n = norm(v); if (!n) return -1; return BRANDS.findIndex(b => norm(b[0]) === n || (b[1] && norm(b[1]) === n) || (b[3] || []).some(a => norm(a) === n)); }
 const opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(l)}</option>`;
 function fillSelect(id, list, value, blank) {
   const items = list.map(x => Array.isArray(x) ? x : [x, x]);
@@ -471,7 +497,8 @@ function askNewSupplier(done) {
 $('pfSup').onchange = () => { if ($('pfSup').value === '__new') askNewSupplier(v => pfDrawChips({ pfSup: v })); };
 function pfName() {
   const bi = brandIndex($('pfBrand').value); const b = bi >= 0 ? BRANDS[bi][0] : $('pfBrand').value.trim();
-  $('pfBrandMsg').textContent = $('pfBrand').value.trim() && bi < 0 ? 'ยี่ห้อใหม่ จะเพิ่มให้ตอนบันทึก' : '';
+  const isNew = !!($('pfBrand').value.trim() && bi < 0);
+  $('pfBrandMsg').textContent = isNew ? 'ยี่ห้อใหม่ จะเพิ่มให้ตอนบันทึก' : ''; $('pfBrandEn').hidden = !isNew;
   const size = $('pfSize').value.trim();
   if (PF.nameAuto && PF.mode === 'new') $('pfName').value = [b, $('pfVariant').value.trim(), size ? size + $('pfSizeU').value : ''].filter(Boolean).join(' ');
   $('pfAuto').hidden = PF.nameAuto || PF.mode !== 'new';
@@ -530,7 +557,8 @@ function pfSave() {
   const errs = []; if (!code) errs.push('ยังไม่มีบาร์โค้ด (ยิง หรือกด "เพิ่มรหัสสินค้า")'); if (!name) errs.push('ยังไม่มีชื่อสินค้า'); if (!(price >= 0)) errs.push('ยังไม่ได้ใส่ราคาขาย');
   if (errs.length) { $('pfErr').textContent = errs.join(' · '); $('pfErr').hidden = false; return; }
   let bi = brandIndex($('pfBrand').value); const bv = $('pfBrand').value.trim();
-  if (bi < 0 && bv) { BRANDS.push([bv, '', 0]); bi = BRANDS.length - 1; DB.addBrand(bv).catch(fail); pfBrandList(); }
+  if (bi < 0 && !bv) bi = brandFromName(name);
+  if (bi < 0 && bv) { const en = $('pfBrandEn').value.trim(); BRANDS.push([bv, en, 0, []]); bi = BRANDS.length - 1; DB.addBrand(bv, en).catch(fail); pfBrandList(); $('pfBrandEn').value = ''; }
   const size = parseFloat($('pfSize').value), su = $('pfSizeU').value; const kg = su === 'kg' ? size : (su === 'g' ? size / 1000 : 0);
   const cost = parseFloat($('pfCost').value), qty = parseInt($('pfQty').value), unit = $('pfUnit').value, sup = $('pfSup').value === '__new' ? '' : $('pfSup').value;
   const old = P.get(code);
@@ -566,7 +594,16 @@ async function pfShowInfo(p) {
       return `<span class="histtag">${at ? at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : ''} ${x.kind === 'cost' ? 'ทุน' : 'ขาย'} ${fmt0(x.old)}→${fmt0(x.new)} <span class="${d > 0 ? 'down' : 'up'}">${d > 0 ? '+' : ''}${fmt0(d)}</span></span>`; }).join('') : 'ยังไม่เคยเปลี่ยนราคาในระบบใหม่';
   } catch (e) { if ($('pfHist')) $('pfHist').textContent = 'โหลดไม่ได้'; }
 }
-function pfBrandList() { $('brandList').innerHTML = BRANDS.map(b => `<option value="${esc(b[0])}">${esc(b[1])}</option>`).join(''); }
+function pfBrandList() { }
+// brand box: suggestions drop down while typing; pick one and the Thai brand name is filled in
+function pfBrandSug() {
+  const v = $('pfBrand').value.trim(), box = $('pfBrandSug');
+  const list = v && !BRANDS.some(b => b[0] === v) ? brandSuggest(v) : [];
+  drawBrandSug(box, list, i => { if (i >= 0) $('pfBrand').value = BRANDS[i][0]; box.hidden = true; pfName(); $('pfVariant').focus(); }, -1);
+}
+$('pfBrand').addEventListener('input', pfBrandSug);
+$('pfBrand').addEventListener('focus', pfBrandSug);
+$('pfBrand').addEventListener('blur', () => setTimeout(() => { $('pfBrandSug').hidden = true; }, 200));
 $('pfCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pfCheckCode(); } });
 $('pfCode').addEventListener('change', pfCheckCode);
 $('pfGen').onclick = () => { $('pfGenBox').hidden = !$('pfGenBox').hidden; };
@@ -585,18 +622,23 @@ function prodOpen() { drawPList(); if (PF.mode === 'empty') $('pSearch').focus()
 function editProduct(code) { closeModal(); tab('prod'); pMode('info'); pfLoad(code); $('pbEdit').click(); }
 
 /* ---------- product table ---------- */
-const PL = { sel: 0, rows: [] };
+const PL = { sel: 0, rows: [], brand: -1 };
 function pFilter() {
   const v = fixCode($('pSearch').value.trim()), sort = $('pSort').value;
   let r;
-  if (sort === 'recent' && !v) r = S.recent.map(x => P.get(x.code)).filter(Boolean);
+  const base = PL.brand >= 0 ? LIST.filter(p => p.brand === PL.brand) : LIST;
+  if (sort === 'recent' && !v) r = S.recent.map(x => P.get(x.code)).filter(p => p && (PL.brand < 0 || p.brand === PL.brand));
   else if (/^\d{3,}$/.test(v)) r = findByDigits(v);
-  else if (v.length) { const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm); r = LIST.filter(p => words.every(w => p.key.includes(w))); }
-  else r = LIST.slice();
+  else if (v.length) { const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm); r = base.filter(p => words.every(w => p.key.includes(w))); }
+  else r = base.slice();
   if (sort === 'low') r = r.filter(p => p.rank > 0 && p.price > 0 && (!p.cost || (p.price - p.cost) / p.price < 0.10));
   if (sort === 'name') r.sort((a, b) => a.name.localeCompare(b.name, 'th'));
   else if (sort !== 'recent' || v) r.sort((a, b) => b.rank - a.rank);
   return r;
+}
+function drawPSug() {
+  const v = $('pSearch').value.trim();
+  drawBrandSug($('pBrandSug'), v && !/^\d+$/.test(fixCode(v)) ? brandSuggest(v, 6) : [], i => { PL.brand = i; if (i >= 0) $('pSearch').value = ''; drawPSug(); drawPList(); $('pSearch').focus(); }, PL.brand);
 }
 function drawPList() {
   PL.rows = pFilter(); const shown = PL.rows.slice(0, 300); const tb = $('pRows'); tb.innerHTML = '';
@@ -609,7 +651,7 @@ function drawPList() {
 }
 function markRow(code) { $('pRows').querySelectorAll('tr').forEach(tr => tr.classList.toggle('on', tr.dataset.code === code)); $('pRows').querySelector('tr.on')?.scrollIntoView({ block: 'nearest' }); }
 let pSearchT = null;
-$('pSearch').addEventListener('input', () => { clearTimeout(pSearchT); pSearchT = setTimeout(drawPList, 120); });
+$('pSearch').addEventListener('input', () => { clearTimeout(pSearchT); pSearchT = setTimeout(() => { drawPSug(); drawPList(); }, 120); });
 $('pSort').onchange = drawPList;
 $('pSearch').addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -987,6 +1029,26 @@ $('histFile').onchange = async e => {
 /* ---------- print-now toggle on the sell screen ---------- */
 function setAutoPrint() { S.autoPrint = false; store.set('autoPrint', false); }
 
+/* ---------- one-time brand clean-up: add Thai/English names and spellings, tag products that had no brand ---------- */
+function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1; const [th, en] = BRAND_RULES[r]; return BRANDS.findIndex(b => norm(b[0]) === norm(th) || (en && norm(b[1]) === norm(en))); }
+async function migrateBrands() {
+  try {
+    if (!S.isOwner || !BRANDS.length) return;
+    const info = await DB.getMeta('info'); if ((info?.brandV || 0) >= BRAND_RULES_VERSION) return;
+    const list = BRANDS.map(b => ({ th: b[0], en: b[1] || '', al: b[3] || [] }));
+    const map = BRAND_RULES.map(([th, en, al]) => {
+      let i = list.findIndex(x => norm(x.th) === norm(th) || (en && norm(x.en) === norm(en)));
+      if (i < 0) { list.push({ th, en, al }); i = list.length - 1; }
+      else { list[i].en = list[i].en || en; list[i].al = [...new Set([...(list[i].al || []), ...al])]; }
+      return i;
+    });
+    const patch = {};
+    for (const p of LIST) if (!(p.brand >= 0 && p.brand < BRANDS.length)) { const r = detectBrand(p.name); if (r >= 0) patch[p.code] = { b: map[r] }; }
+    await DB.setBrands(list); await DB.patchMany(patch); await DB.saveMeta('info', { brandV: BRAND_RULES_VERSION });
+    toast(`จัดยี่ห้อสินค้าเพิ่ม ${Object.keys(patch).length} รายการแล้ว`);
+  } catch (e) { console.error('brand update', e); }
+}
+
 /* ---------- start-up: sign in, check access, first import, then load ---------- */
 const gate = (msg, { login = false, importer = false, logout = false } = {}) => {
   $('gate').hidden = false; $('appRoot').hidden = true; $('gateMsg').textContent = msg;
@@ -1011,7 +1073,7 @@ let unsubs = [];
 function startData() {
   gate('กำลังโหลดข้อมูลสินค้า…');
   unsubs.forEach(u => u()); unsubs = [];
-  unsubs.push(DB.watchMeta('brands', d => { const list = d?.list || []; BRANDS = list.map(b => [b.th, b.en || '', 0]); rebuildCatalog(); pfBrandList(); }));
+  unsubs.push(DB.watchMeta('brands', d => { const list = d?.list || []; BRANDS = list.map(b => [b.th, b.en || '', 0, b.al || []]); rebuildCatalog(); pfBrandList(); }));
   unsubs.push(DB.watchMeta('settings', d => { if (d) { S.settings = { ...DEFAULT_SETTINGS, ...d }; store.set('settingsCache', S.settings); }
     if (d && (!d.shop || d.shop === 'ร้านเพ็ทช็อป')) DB.saveMeta('settings', { shop: DEFAULT_SETTINGS.shop }).catch(() => { }); renderSellers(); pfDrawChips(); fillSettings(); }));
   if (S.isOwner) unsubs.push(DB.watchMeta('staff', d => { S.staff = d?.emails || []; fillSettings(); }, () => { }));
@@ -1034,6 +1096,7 @@ function showApp() {
   $('gate').hidden = true; $('appRoot').hidden = false;
   rebuildCatalog(); renderSellers(); pfDrawChips(); pfSetMode('empty'); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync();
   if (matchMedia('(max-width: 700px)').matches) tab('prod'); else focusQ();
+  setTimeout(migrateBrands, 2500);
 }
 function noAccess() {
   unsubs.forEach(u => u()); unsubs = [];
@@ -1058,7 +1121,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '21';
+const APP_VERSION = '22';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
