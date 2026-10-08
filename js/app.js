@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=37';
-import { OWNER_EMAIL } from './config.js?v=37';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=37';
+import * as DB from './db.js?v=38';
+import { OWNER_EMAIL } from './config.js?v=38';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=38';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -145,7 +145,7 @@ function renderTabs() {
 function renderCart() {
   const tb = $('cart'); tb.innerHTML = ''; const cart = T().cart;
   cart.forEach((it, idx) => {
-    const tr = document.createElement('tr'); if (it.code === lastAdded) tr.className = 'flash';
+    const tr = document.createElement('tr'); tr.dataset.i = idx; if (it.code === lastAdded) tr.className = 'flash';
     tr.innerHTML = `<td class="num">${idx + 1}</td>
       <td style="min-width:180px">${esc(it.name)}<div class="hint num">${esc(it.code)} · ${esc(it.unit)}${it.custom ? ' <span class="changed">ราคาพิเศษบิลนี้</span>' : ''}</div></td>
       <td style="white-space:nowrap"><span class="qty"><button aria-label="ลด">−</button><input class="num" value="${it.qty}" inputmode="numeric" aria-label="จำนวน"><button aria-label="เพิ่ม">+</button></span>
@@ -156,18 +156,32 @@ function renderCart() {
     const [minus, plus] = tr.querySelectorAll('.qty button'); const qi = tr.querySelector('.qty input');
     minus.onclick = () => { if (it.qty > 1) it.qty--; else cart.splice(idx, 1); render(); };
     plus.onclick = () => { it.qty++; render(); };
-    qi.onchange = () => { it.qty = Math.max(1, parseInt(qi.value) || 1); render(); focusQ(); };
+    qi.onchange = () => { if (scanInBox(qi, it.qty)) return; it.qty = Math.max(1, Math.min(9999, parseInt(qi.value) || 1)); render(); afterCartEdit(); };
     qi.onkeydown = e => { if (e.key === 'Enter') qi.blur(); };
     const li = tr.querySelector('.ld input');
-    li.onchange = () => { const v = parseFloat(li.value); it.ld = v > 0 ? Math.min(Math.round(v * 100) / 100, it.price * it.qty) : 0; render(); focusQ(); };
+    li.onchange = () => { if (scanInBox(li, it.ld || '')) return; const v = parseFloat(li.value); it.ld = v > 0 ? Math.min(Math.round(v * 100) / 100, it.price * it.qty) : 0; render(); afterCartEdit(); };
     li.onkeydown = e => { if (e.key === 'Enter') li.blur(); };
     const pi = tr.querySelector('.price');
     pi.onkeydown = e => { if (e.key === 'Enter') pi.blur(); };
-    pi.onchange = () => { const v = parseFloat(pi.value); if (!(v >= 0) || v === it.price) { pi.value = it.price; return; } askPrice(it, Math.round(v * 100) / 100); };
+    pi.onchange = () => { if (scanInBox(pi, it.price)) return; const v = parseFloat(pi.value); if (!(v >= 0) || v === it.price) { pi.value = it.price; return; } askPrice(it, Math.round(v * 100) / 100); };
     tr.querySelector('.del').onclick = () => { cart.splice(idx, 1); render(); focusQ(); };
     tb.appendChild(tr);
   });
   $('emptyCart').hidden = cart.length > 0;
+}
+// which cart box the person clicked while another one was being edited, so the re-draw doesn't lose it
+let cartNext = null;
+$('cart').addEventListener('pointerdown', e => { const inp = e.target.closest('input'); const tr = e.target.closest('tr');
+  cartNext = inp && tr ? { i: tr.dataset.i, f: inp.closest('.qty') ? '.qty input' : inp.closest('.ld') ? '.ld input' : '.price' } : null; }, true);
+function afterCartEdit() {
+  const n = cartNext; cartNext = null;
+  const el = n && document.querySelector(`#cart tr[data-i="${n.i}"] ${n.f}`);
+  if (el) { el.focus(); el.select?.(); } else focusQ();
+}
+// a barcode typed into a quantity/discount/price box by the scanner: put the box back and scan it instead
+function scanInBox(inp, keep) {
+  const v = fixCode(String(inp.value).trim()); if (!/^\d{8,14}$/.test(v)) return false;
+  inp.value = keep; cartNext = null; focusQ(); scanEnter(v); return true;
 }
 function render() {
   renderTabs(); renderCart();
@@ -244,7 +258,13 @@ function notFound(code, old) {   // old = existing product whose saved name/pric
     $('notice').innerHTML = ''; addItem(old || p); toast(old ? 'แก้ข้อมูลสินค้าแล้ว' : 'เพิ่มสินค้าใหม่แล้ว'); focusQ();
   };
 }
-$('q').addEventListener('input', e => { const v = e.target.value; if (/[^\d\s*\-]/.test(thaiDigits(v))) { e.target.value = ''; openFinder(v); } });
+$('q').addEventListener('input', e => {
+  const v = e.target.value; clearTimeout(qTimer);
+  if (/[^\d\s*\-]/.test(thaiDigits(v))) { e.target.value = ''; openFinder(v); return; }
+  // a scanner types the whole code in a few ms; a person typing one Thai letter (ค, ต, จ ...) pauses → open the search
+  if (hasThai(v)) qTimer = setTimeout(() => { const w = $('q').value; if (w && w.length <= 3 && hasThai(w)) { $('q').value = ''; openFinder(w); } }, 300);
+});
+let qTimer;
 $('q').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return; e.preventDefault();
   const raw = e.target.value.trim(); if (!raw) return; e.target.value = '';
@@ -1028,6 +1048,15 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && modalOpen()) { closeModal(); return; }
   if (modalOpen() || $('viewSell').hidden) return;
   if (e.key === 'F1') { e.preventDefault(); openFinder(''); return; }
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const a = document.activeElement, q = $('q');
+    if (a !== q) {
+      const inNum = a && a.matches('#cart input, #disc');
+      const other = a && a.matches('input, textarea, select') && !inNum;
+      const numKey = /[\d.*\-]/.test(thaiDigits(e.key));
+      if (!other && !(inNum && numKey)) { e.preventDefault(); q.focus(); q.value += e.key; q.dispatchEvent(new Event('input')); }
+    }
+  }
   if (e.key === 'F6') { e.preventDefault(); holdBill(); return; }
   const map = { F2: 'cash', F3: 'transfer', F4: 'half' }; if (map[e.key]) { e.preventDefault(); openPay(map[e.key]); }
 });
@@ -1226,7 +1255,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=37');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=38');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1330,7 +1359,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '37';
+const APP_VERSION = '38';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
