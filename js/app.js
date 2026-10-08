@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=39';
-import { OWNER_EMAIL } from './config.js?v=39';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=39';
+import * as DB from './db.js?v=40';
+import { OWNER_EMAIL } from './config.js?v=40';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=40';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -817,11 +817,18 @@ $('pbSave').onclick = pfSave; $('pbDel').onclick = pfDelete; $('pbCancel').oncli
 $('pbBuy').onclick = () => { const p = P.get(PF.code); if (p) buyAsk(p); };
 $('pbSave2').onclick = pfSave; $('pbCancel2').onclick = pfCancel;
 $('pbLabel').onclick = () => { const code = $('pfCode').value.trim(); if (!code) return; openLabel(P.get(code) || { code, name: $('pfName').value.trim(), price: parseFloat($('pfPrice').value) || 0 }); };
-function prodOpen() { drawPList(); if (PF.mode === 'empty') $('pSearch').focus(); }
+function prodOpen() { drawPChips(); drawPList(); if (PF.mode === 'empty') $('pSearch').focus(); }
 function editProduct(code) { closeModal(); tab('prod'); pMode('info'); pfLoad(code); $('pbEdit').click(); }
 
 /* ---------- product table ---------- */
-const PL = { sel: 0, rows: [], brand: -1 };
+const PL = { sel: 0, rows: [], brand: -1, type: '', animal: '' };
+// animal / type chips under the product search (same choices as the sell-screen finder)
+function drawPChips() {
+  for (const [id, list, key] of [['pAnimal', ANIMALS, 'animal'], ['pType', TYPES, 'type']]) {
+    $(id).innerHTML = list.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${PL[key] === v}">${l}</button>`).join('');
+    $(id).querySelectorAll('.chip').forEach(c => c.onclick = () => { PL[key] = c.dataset.v; drawPChips(); drawPList(); });
+  }
+}
 function pFilter() {
   const v = fixCode($('pSearch').value.trim()), sort = $('pSort').value;
   let r;
@@ -830,6 +837,8 @@ function pFilter() {
   else if (/^\d{3,}$/.test(v)) r = findByDigits(v);
   else if (v.length) { const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm); r = base.filter(p => words.every(w => p.key.includes(w))); }
   else r = base.slice();
+  if (PL.type) r = r.filter(p => PL.type === 'big' ? p.big : p.type === PL.type);
+  if (PL.animal) r = r.filter(p => p.animal === PL.animal);
   if (sort === 'low') r = r.filter(p => p.rank > 0 && p.price > 0 && (!p.cost || (p.price - p.cost) / p.price < 0.10));
   if (sort === 'name') r.sort((a, b) => a.name.localeCompare(b.name, 'th'));
   else if (sort !== 'recent' || v) r.sort((a, b) => b.rank - a.rank);
@@ -1255,7 +1264,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=39');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=40');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1364,7 +1373,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '39';
+const APP_VERSION = '40';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

@@ -363,3 +363,5 @@ tr.cancel td:last-child{text-decoration:none}
 #bList:empty{display:none}#bList .bgrp:last-child{margin-bottom:0}
 .buylist .recentbox{border:1px solid var(--line);border-radius:var(--r)}
 @media (max-width:700px){.buyadd,.buylist{padding:14px}.buytitle h2{font-size:20px}}
+.pfilters{display:grid;gap:6px}.pfilters .flabel{min-width:52px;font-weight:600;color:var(--muted);font-size:14px}
+@media (max-width:700px){.pfilters .frow{flex-wrap:nowrap}.pfilters .fchips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.pfilters .fchips::-webkit-scrollbar{display:none}.pfilters .chip{white-space:nowrap}}
