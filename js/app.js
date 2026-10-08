@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=34';
-import { OWNER_EMAIL } from './config.js?v=34';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=34';
+import * as DB from './db.js?v=35';
+import { OWNER_EMAIL } from './config.js?v=35';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=35';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -198,6 +198,12 @@ function findByDigits(v) {
   return ends.length ? ends : (v.length >= 4 ? LIST.filter(p => p.code.includes(v)) : []);
 }
 function addItem(p, qty = 1) {
+  if (p.price > 99999 || !/[^\d\s.,-]/.test(p.name || '')) {   // broken record (e.g. barcodes saved as name/price): fix it first
+    $('notice').innerHTML = `<div class="notice">ข้อมูลสินค้าบาร์โค้ด <b class="num">${esc(p.code)}</b> ผิด (ชื่อ "${esc(String(p.name).slice(0, 30))}" ราคา ${fmt(p.price)}) แก้ก่อนขาย
+      <button class="primary" id="fixBad" style="padding:8px 14px;font-size:15px">แก้ไขสินค้านี้</button></div>`;
+    $('fixBad').onclick = () => { $('notice').innerHTML = ''; editProduct(p.code); };
+    return;
+  }
   const cart = T().cart; const ex = cart.find(i => i.code === p.code);
   if (ex) { ex.qty += qty; cart.splice(cart.indexOf(ex), 1); cart.unshift(ex); }
   else cart.unshift({ code: p.code, name: p.name, unit: p.unit, price: p.price, qty });
@@ -215,8 +221,22 @@ function notFound(code) {
   nb.addEventListener('blur', () => setTimeout(() => { box.hidden = true; }, 200));
   nb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const c = box.querySelector('.bchip'); if (c && !box.hidden) c.click(); else $('nName').focus(); } });
   nb.focus();
+  // the scanner types digits + Enter: if that lands in these boxes, it's the next product, not a name or price
+  $('addForm').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    const el = e.target, v = fixCode(el.value), m = v.match(/(\d{8,14})\s*$/), isPrice = el.id === 'nPrice';
+    if (!m || (isPrice && m[1].length < 7)) return;
+    e.preventDefault(); e.stopPropagation();
+    el.value = el.value.slice(0, el.value.length - m[0].length).trim();
+    if (!$('nName').value.trim()) $('notice').innerHTML = '';
+    toast('ยิงบาร์โค้ดใหม่ ข้ามสินค้าที่ไม่มีในระบบ (' + code + ')');
+    scanEnter(m[1]); focusQ();
+  }, true);
   $('addForm').onsubmit = e => {
     e.preventDefault();
+    const nm = $('nName').value.trim(), pr = parseFloat($('nPrice').value);
+    if (!/[^\d\s.,-]/.test(nm)) { toast('ชื่อสินค้าต้องเป็นตัวหนังสือ ไม่ใช่ตัวเลขบาร์โค้ด'); $('nName').value = ''; $('nName').focus(); return; }
+    if (!(pr >= 0) || pr > 99999) { toast('ราคาผิด (ต้องไม่เกิน 99,999 บาท) ใส่ใหม่อีกที'); $('nPrice').value = ''; $('nPrice').focus(); return; }
     const bv = nb.value.trim(); let name = $('nName').value.trim();
     let bi = bv ? brandIndex(bv) : brandFromName(name);
     if (bi < 0 && bv) { BRANDS.push([bv, '', 0, []]); bi = BRANDS.length - 1; DB.addBrand(bv, '').catch(fail); }
@@ -230,6 +250,9 @@ $('q').addEventListener('input', e => { const v = e.target.value; if (/[^\d\s*\-
 $('q').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return; e.preventDefault();
   const raw = e.target.value.trim(); if (!raw) return; e.target.value = '';
+  scanEnter(raw);
+});
+function scanEnter(raw) {
   const v = fixCode(raw); if (v !== raw) toast('แป้นพิมพ์เป็นภาษาไทยอยู่ ระบบอ่านเป็น ' + v + ' ให้แล้ว');
   const cart = T().cart;
   const m = v.match(/^\*(\d+)$/); if (m) { if (cart[0]) { cart[0].qty = Math.max(1, +m[1]); render(); } return; }
@@ -242,7 +265,7 @@ $('q').addEventListener('keydown', e => {
     toast('ไม่พบสินค้าที่บาร์โค้ดลงท้ายด้วย ' + v); return;
   }
   openFinder(v);
-});
+}
 $('findBtn').onclick = () => openFinder('');
 
 /* ---------- finder popup ---------- */
@@ -707,7 +730,8 @@ function pfSave() {
   if (PF.mode === 'new') pfCheckCode(); if (PF.mode === 'view') return;
   if (!$('pfName').value.trim()) { PF.nameAuto = true; pfName(); }
   const code = $('pfCode').value.trim(), name = $('pfName').value.trim(), price = parseFloat($('pfPrice').value);
-  const errs = []; if (!code) errs.push('ยังไม่มีบาร์โค้ด (ยิง หรือกด "เพิ่มรหัสสินค้า")'); if (!name) errs.push('ยังไม่มีชื่อสินค้า'); if (!(price >= 0)) errs.push('ยังไม่ได้ใส่ราคาขาย');
+  const errs = []; if (!code) errs.push('ยังไม่มีบาร์โค้ด (ยิง หรือกด "เพิ่มรหัสสินค้า")'); if (!name) errs.push('ยังไม่มีชื่อสินค้า'); if (!(price >= 0)) errs.push('ยังไม่ได้ใส่ราคาขาย'); else if (price > 99999) errs.push('ราคาขายเกิน 99,999 บาท ตรวจอีกที');
+  if (name && !/[^\d\s.,-]/.test(name)) errs.push('ชื่อสินค้าเป็นตัวเลขอย่างเดียว ใส่ชื่อจริงก่อน');
   if (errs.length) { $('pfErr').textContent = errs.join(' · '); $('pfErr').hidden = false; return; }
   let bi = brandIndex($('pfBrand').value); const bv = $('pfBrand').value.trim();
   if (bi < 0 && !bv) bi = brandFromName(name);
@@ -1291,7 +1315,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '34';
+const APP_VERSION = '35';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
