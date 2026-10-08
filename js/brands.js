@@ -1,7 +1,7 @@
 // Brand list with the other spellings people type, and patterns that recognise the brand in a product name.
 // [Thai name, English name, extra search words, name patterns (tested on the lower-case name without spaces)]
 // Existing brands keep their position in the stored list; new ones are appended, so product links never shift.
-export const BRAND_RULES_VERSION = 2;
+export const BRAND_RULES_VERSION = 3;
 export const BRAND_RULES = [
   ['สมาร์ทฮาร์ท', 'SmartHeart', ['sm', 'sh', 'smh', 'shg', 's/h', 'smart heart', 'สมาร์ท'], [/^sm(?![a-z])/, /^sh(?![a-z])/, /^shg/, /^s\/h/, /^smh/, /สมาร์ทฮาร์ท/, /สมาร์ฮาร์ท/, /smartheart/]],
   ['มีโอ', 'Me-O', ['meo', 'me o', 'มีโอ้'], [/me-?o/, /มีโอ/]],
@@ -99,6 +99,8 @@ export const BRAND_RULES = [
   ['มาวว้าว', 'MowWow', ['mowwow'], [/mowwow/]],
   ['ชินจิ', 'Chin-Ji', ['chinji'], [/chin-?ji/, /ชินจิ/]],
   ['เอ็กซ์ตร้า', 'Extra Treats', ['extratreats'], [/extratreats/]],
+  // added in version 3
+  ['เชอร์แมน', 'Cherman', ['cherman', 'เชอแมน', 'เชอร์แมนท์'], [/cherman/, /เชอร์?แมน/]],
 ];
 const norm = s => String(s ?? '').toLowerCase().replace(/\s+/g, '');
 export function detectBrand(name) {

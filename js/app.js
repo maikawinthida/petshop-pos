@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=38';
-import { OWNER_EMAIL } from './config.js?v=38';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=38';
+import * as DB from './db.js?v=39';
+import { OWNER_EMAIL } from './config.js?v=39';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=39';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1255,7 +1255,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=38');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=39');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1274,9 +1274,14 @@ async function migrateBrands() {
     const info = await DB.getMeta('info'); if ((info?.brandV || 0) >= BRAND_RULES_VERSION) return;
     const list = BRANDS.map(b => ({ th: b[0], en: b[1] || '', al: b[3] || [] }));
     const map = BRAND_RULES.map(([th, en, al]) => {
-      let i = list.findIndex(x => norm(x.th) === norm(th) || (en && norm(x.en) === norm(en)));
+      const names = [th, en, ...al].filter(Boolean).map(norm);
+      let i = list.findIndex(x => names.includes(norm(x.th)) || (x.en && names.includes(norm(x.en))));
       if (i < 0) { list.push({ th, en, al }); i = list.length - 1; }
-      else { list[i].en = list[i].en || en; list[i].al = [...new Set([...(list[i].al || []), ...al])]; }
+      else {
+        const x = list[i];
+        if (!hasThai(x.th) && hasThai(th)) { al = [...al, x.th]; x.th = th; }   // brand someone typed in English only → give it its Thai name
+        x.en = x.en || en; x.al = [...new Set([...(x.al || []), ...al])];
+      }
       return i;
     });
     const patch = {};
@@ -1359,7 +1364,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '38';
+const APP_VERSION = '39';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
