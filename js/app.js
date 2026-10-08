@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=29';
-import { OWNER_EMAIL } from './config.js?v=29';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=29';
+import * as DB from './db.js?v=30';
+import { OWNER_EMAIL } from './config.js?v=30';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=30';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -474,7 +474,7 @@ $('logoutBtn').onclick = () => confirmBox('ออกจากระบบเค�
 const PTYPES = TYPES.filter(([v]) => v && v !== 'big');
 const PANIMALS = ANIMALS.filter(([v]) => v);
 const SIZEU = ['g', 'kg', 'ml', 'L', 'ชิ้น'];
-const UNITS = ['ถุง', 'กระสอบ', 'ซอง', 'กระป๋อง', 'ถาด', 'ชิ้น', 'ขวด', 'แพ็ค', 'อัน', 'กระปุก'];
+const UNITS = ['ถุง', 'กระสอบ', 'ซอง', 'กระป๋อง', 'ถาด', 'ชิ้น', 'ขวด', 'แพ็ค', 'กล่อง', 'อัน', 'กระปุก'];
 // mode: empty (nothing chosen) · view (row chosen, read-only) · edit (changing a product) · new (adding one)
 const PF = { code: '', mode: 'empty', nameAuto: true };
 const supList = () => S.settings.suppliers || [];
@@ -1146,7 +1146,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '29';
+const APP_VERSION = '30';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
