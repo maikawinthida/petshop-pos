@@ -1,12 +1,13 @@
-import * as DB from './db.js?v=32';
-import { OWNER_EMAIL } from './config.js?v=32';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=32';
+import * as DB from './db.js?v=33';
+import { OWNER_EMAIL } from './config.js?v=33';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=33';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
 let BRANDS = [];                          // [th, en, count]
 const norm = s => String(s ?? '').toLowerCase().replace(/\s+/g, '');
-function mkKey(o) { const b = BRANDS[o.brand]; return norm(o.name + ' ' + o.code + (b ? ' ' + b[0] + ' ' + b[1] + ' ' + (b[3] || []).join(' ') : '')); }
+function mkKey(o) { const b = BRANDS[o.brand]; const tl = (typeof TYPES !== 'undefined' && TYPES.find(([v]) => v && v === o.type)?.[1]) || '', al = (typeof ANIMALS !== 'undefined' && ANIMALS.find(([v]) => v && v === o.animal)?.[1]) || '';
+  return norm(o.name + ' ' + o.code + (b ? ' ' + b[0] + ' ' + b[1] + ' ' + (b[3] || []).join(' ') : '') + ' ' + tl + ' ' + al); }
 /* brands that match what's typed, in Thai, English or a short form ("sm", "สม" → สมาร์ทฮาร์ท) */
 function brandSuggest(q, max = 8) {
   const nq = norm(q); if (!nq) return [];
@@ -318,6 +319,98 @@ $('disc').oninput = e => { T().disc = Math.max(0, parseFloat(e.target.value) || 
 $('disc').onkeydown = e => { if (e.key === 'Enter') focusQ(); };
 $('clearBtn').onclick = () => { if (!T().cart.length && S.tabs.length < 2) return; confirmBox(S.tabs.length > 1 ? `ปิดบิล ${S.cur + 1} และล้างสินค้าทั้งหมด?` : 'ล้างสินค้าทั้งหมดในบิลนี้?', 'ล้างบิล', () => { closeCurrentTab(); focusQ(); }); };
 
+
+/* ---------- ของหมด: shopping list for restocking, grouped brand → type → name ---------- */
+const BUY = { items: [], sup: '' };
+const QTY_QUICK = ['1 โหล', '2 โหล', '3 โหล', '6 ชิ้น', '1 ลัง', '2 ลัง', '1 แพ็ค', '1 กระสอบ', '2 กระสอบ'];
+const typeLabel = t => t === 'big' ? 'กระสอบ' : (TYPES.find(([v]) => v === t)?.[1] || 'อื่นๆ');
+const animalLabel = a => ANIMALS.find(([v]) => v === a && v)?.[1] || '';
+function buyInfo(it) {   // live product data when linked, else what was saved with the item
+  const p = it.code ? P.get(it.code) : null;
+  const bi = p ? p.brand : -1;
+  return { p, name: p?.name || it.name, brand: bi >= 0 && BRANDS[bi] ? BRANDS[bi][0] + (BRANDS[bi][1] ? ' · ' + BRANDS[bi][1] : '') : (it.bt || 'ไม่มียี่ห้อ'),
+    type: p ? (p.type || 'other') : (it.t || 'other'), animal: p ? p.animal : (it.a || ''), sup: p?.supplier || it.s || '' };
+}
+function buyBadge() { const n = BUY.items.filter(i => !i.done).length; $('tabBuy').textContent = n ? `ของหมด (${n})` : 'ของหมด'; }
+function buyOpen() { buyDraw(); if (innerWidth >= 900) $('bq').focus(); }
+function buySearch() {
+  const raw = $('bq').value.trim(), box = $('bRes'); box.innerHTML = '';
+  if (!raw) return;
+  const d = fixCode(raw); let res;
+  if (/^\d{3,}$/.test(d)) res = LIST.filter(p => p.code.endsWith(d));
+  else { const words = raw.toLowerCase().split(/\s+/).filter(Boolean).map(norm); res = LIST.filter(p => words.every(w => p.key.includes(w))).sort((a, b) => b.rank - a.rank); }
+  for (const p of res.slice(0, 12)) {
+    const inList = BUY.items.find(i => i.code === p.code && !i.done);
+    const b = document.createElement('button'); b.className = 'bresrow';
+    b.innerHTML = `<span class="nm">${esc(p.name)}</span><span class="hint">${inList ? 'อยู่ในลิสต์: ' + esc(inList.qty || '') : esc(p.unit || '')}</span>`;
+    b.onclick = () => buyAsk(p); box.appendChild(b);
+  }
+  if (!/^\d+$/.test(d)) { const b = document.createElement('button'); b.className = 'bresrow free'; b.innerHTML = `<span class="nm">＋ เพิ่ม "${esc(raw)}" เป็นรายการพิมพ์เอง</span>`; b.onclick = () => buyAsk(null, raw); box.appendChild(b); }
+  else if (!res.length) box.innerHTML = '<p class="hint">ไม่พบบาร์โค้ดนี้ในระบบ</p>';
+}
+$('bq').addEventListener('input', buySearch);
+$('bq').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const f = $('bRes').querySelector('.bresrow'); if (f) f.click(); } });
+$('bCam').onclick = () => { SC.target = 'buy'; if (!SC.camOn) camStart(); };
+function buyScan(code) { const p = P.get(code); if (p) buyAsk(p); else { $('bq').value = code; buySearch(); toast('ไม่พบบาร์โค้ดนี้ในระบบ'); } }
+// ask how many to buy; editing an existing line when the product is already on the list
+function buyAsk(p, freeName, item) {
+  item = item || (p && BUY.items.find(i => i.code === p.code && !i.done)) || null;
+  const name = p?.name || item?.name || freeName || '';
+  const s = openModal(`<h2>${esc(name)}</h2><p class="hint" style="margin:0">จะซื้อเท่าไร</p>
+    <div class="fchips qchips">${QTY_QUICK.map(q => `<button class="chip" data-q="${q}">${q}</button>`).join('')}</div>
+    <input class="tin" id="buyQty" placeholder="หรือพิมพ์เอง เช่น 2 โหล, 10 ซอง" value="${esc(item?.qty || '')}">
+    <input class="tin" id="buyNote" placeholder="หมายเหตุ (ถ้ามี) เช่น เอารสทูน่า" value="${esc(item?.note || '')}">
+    <div class="mrow">${item ? '<button class="ghost bad" id="buyDel">ลบออกจากลิสต์</button>' : ''}<button class="ghost" id="buyNo">ยกเลิก</button><button class="primary" id="buyOk">${item ? 'บันทึก' : 'เพิ่มในลิสต์'}</button></div>`);
+  const q = s.querySelector('#buyQty');
+  s.querySelectorAll('.qchips .chip').forEach(c => c.onclick = () => { q.value = c.dataset.q; s.querySelector('.qchips [aria-pressed="true"]')?.setAttribute('aria-pressed', 'false'); c.setAttribute('aria-pressed', 'true'); });
+  const ok = () => {
+    const it = item ? { ...item } : { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), code: p?.code || '', done: false, at: Date.now() };
+    it.qty = q.value.trim(); it.note = s.querySelector('#buyNote').value.trim(); it.name = name; it.by = S.user?.email || '';
+    if (p) { const bi = p.brand; it.bt = bi >= 0 && BRANDS[bi] ? BRANDS[bi][0] : ''; it.t = p.type || 'other'; it.a = p.animal || ''; it.s = p.supplier || ''; }
+    const i = BUY.items.findIndex(x => x.id === it.id); if (i >= 0) BUY.items[i] = it; else BUY.items.push(it);
+    DB.saveBuy(it).catch(fail); closeModal(); buyDraw(); buyBadge();
+    toast(item ? 'แก้ไขแล้ว' : 'เพิ่มในลิสต์ของหมดแล้ว'); $('bq').value = ''; $('bRes').innerHTML = '';
+  };
+  s.querySelector('#buyOk').onclick = ok; s.querySelector('#buyNo').onclick = closeModal;
+  q.onkeydown = e => { if (e.key === 'Enter') ok(); };
+  if (item) s.querySelector('#buyDel').onclick = () => { BUY.items = BUY.items.filter(x => x.id !== item.id); DB.delBuy([item.id]).catch(fail); closeModal(); buyDraw(); buyBadge(); toast('ลบออกจากลิสต์แล้ว'); };
+  if (innerWidth >= 900) q.focus();
+}
+function buyRow(it, info) {
+  const r = document.createElement('div'); r.className = 'buyrow' + (it.done ? ' done' : '');
+  r.innerHTML = `<input type="checkbox" ${it.done ? 'checked' : ''} aria-label="ซื้อแล้ว"><div class="nm">${esc(info.name)}${it.note ? `<div class="hint">${esc(it.note)}</div>` : ''}</div><b class="bqty">${esc(it.qty || '—')}</b>`;
+  r.querySelector('input').onchange = e => { it.done = e.target.checked; DB.saveBuy({ id: it.id, done: it.done }).catch(fail); buyDraw(); buyBadge(); };
+  r.querySelector('.nm').onclick = r.querySelector('.bqty').onclick = () => buyAsk(info.p, it.name, it);
+  return r;
+}
+function buyDraw() {
+  const open = BUY.items.filter(i => !i.done).map(it => [it, buyInfo(it)]);
+  const done = BUY.items.filter(i => i.done).map(it => [it, buyInfo(it)]);
+  // supplier filter chips (only suppliers that appear on the list)
+  const sups = [...new Set(open.map(([, x]) => x.sup).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+  if (BUY.sup && !sups.includes(BUY.sup)) BUY.sup = '';
+  $('bSup').innerHTML = sups.length > 1 ? [['', 'ทุกร้าน'], ...sups.map(x => [x, x])].map(([v, l]) => `<button class="chip" data-v="${esc(v)}" aria-pressed="${BUY.sup === v}">${esc(l)}</button>`).join('') : '';
+  $('bSup').querySelectorAll('.chip').forEach(c => c.onclick = () => { BUY.sup = c.dataset.v; buyDraw(); });
+  const shown = open.filter(([, x]) => !BUY.sup || x.sup === BUY.sup);
+  // group: brand → type (+animal) → name
+  const tOrder = t => { const i = TYPES.findIndex(([v]) => v === t); return i < 0 ? 99 : i; };
+  shown.sort(([, a], [, b]) => (a.brand === 'ไม่มียี่ห้อ') - (b.brand === 'ไม่มียี่ห้อ') || a.brand.localeCompare(b.brand, 'th') || tOrder(a.type) - tOrder(b.type) || a.name.localeCompare(b.name, 'th'));
+  const box = $('bList'); box.innerHTML = '';
+  let lastB = null, lastT = null, grp = null;
+  for (const [it, x] of shown) {
+    if (x.brand !== lastB) { grp = document.createElement('div'); grp.className = 'bgrp'; grp.innerHTML = `<h3>${esc(x.brand)}</h3>`; box.appendChild(grp); lastB = x.brand; lastT = null; }
+    const tl = typeLabel(x.type);
+    if (tl !== lastT) { const h = document.createElement('div'); h.className = 'btype'; h.textContent = tl; grp.appendChild(h); lastT = tl; }
+    grp.appendChild(buyRow(it, x));
+  }
+  $('bEmpty').hidden = shown.length > 0;
+  $('bCount').textContent = open.length ? `${shown.length}${BUY.sup ? '/' + open.length : ''} รายการ` : '';
+  $('bDoneBox').hidden = !done.length; $('bDoneCount').textContent = done.length + ' รายการ';
+  const db = $('bDone'); db.innerHTML = ''; done.sort(([a], [b]) => a.name.localeCompare(b.name, 'th')).forEach(([it, x]) => db.appendChild(buyRow(it, x)));
+}
+$('bClear').onclick = () => { const ids = BUY.items.filter(i => i.done).map(i => i.id); if (!ids.length) return;
+  confirmBox(`ล้างรายการที่ซื้อแล้ว ${ids.length} รายการ?`, 'ล้าง', () => { BUY.items = BUY.items.filter(i => !i.done); DB.delBuy(ids).catch(fail); buyDraw(); }); };
+
 /* ---------- modal helpers ---------- */
 function openModal(html, cls = '') {
   const s = document.createElement('div'); s.className = 'scrim'; s.innerHTML = `<div class="modal ${cls}" role="dialog" aria-modal="true">${html}</div>`;
@@ -450,11 +543,11 @@ function renderBills() {
   $('emptyPrices').hidden = S.priceLog.length > 0;
 }
 function tab(w) {
-  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewProd', 'tabProd', 'prod'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
-  if (w !== 'prod' && typeof SC !== 'undefined' && SC.camOn) camStop();
-  if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else if (w === 'report') loadReport(); else focusQ();
+  for (const [vid, bid, name] of [['viewSell', 'tabSell', 'sell'], ['viewProd', 'tabProd', 'prod'], ['viewBuy', 'tabBuy', 'buy'], ['viewBills', 'tabBills', 'bills'], ['viewReport', 'tabReport', 'report']]) { $(vid).hidden = w !== name; $(bid).setAttribute('aria-selected', w === name); }
+  if (typeof SC !== 'undefined' && SC.camOn) camStop();
+  if (w === 'bills') renderBills(); else if (w === 'prod') prodOpen(); else if (w === 'buy') buyOpen(); else if (w === 'report') loadReport(); else focusQ();
 }
-$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report');
+$('tabSell').onclick = () => tab('sell'); $('tabProd').onclick = () => tab('prod'); $('tabBuy').onclick = () => tab('buy'); $('tabBills').onclick = () => tab('bills'); $('tabReport').onclick = () => tab('report');
 
 /* ---------- settings ---------- */
 function fillSettings() {
@@ -578,7 +671,7 @@ function pfSetMode(mode) {
   $('pbSave').disabled = !(mode === 'edit' || mode === 'new'); $('pfBottom').hidden = $('pbSave').disabled;
   $('pbDel').disabled = !(has && (mode === 'view' || mode === 'edit'));
   $('pbCancel').disabled = !(mode === 'edit' || mode === 'new');
-  $('pbLabel').disabled = !($('pfCode').value.trim());
+  $('pbLabel').disabled = !($('pfCode').value.trim()); $('pbBuy').disabled = !(has && mode === 'view');
   $('pfSizeU').style.visibility = (mode === 'view' && !$('pfSize').value) ? 'hidden' : '';
   $('pfTitle').textContent = { empty: 'ข้อมูลสินค้า', view: 'ข้อมูลสินค้า', edit: 'แก้ไขสินค้า', new: 'เพิ่มสินค้าใหม่' }[mode];
   $('pfState').textContent = { empty: 'เลือกสินค้าจากตาราง หรือกด เพิ่ม', view: 'กด แก้ไข เพื่อเปลี่ยนข้อมูล', edit: 'แก้แล้วกด บันทึก', new: 'ยิงบาร์โค้ด แล้วกรอกข้อมูล' }[mode];
@@ -679,6 +772,7 @@ $('pfPrice').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preve
 $('pbAdd').onclick = () => pfClear(false); $('pfEmptyAdd').onclick = () => pfClear(false);
 $('pbEdit').onclick = () => { if (PF.mode !== 'view') return; pfSetMode('edit'); $('pfPrice').focus(); $('pfPrice').select(); };
 $('pbSave').onclick = pfSave; $('pbDel').onclick = pfDelete; $('pbCancel').onclick = pfCancel;
+$('pbBuy').onclick = () => { const p = P.get(PF.code); if (p) buyAsk(p); };
 $('pbSave2').onclick = pfSave; $('pbCancel2').onclick = pfCancel;
 $('pbLabel').onclick = () => { const code = $('pfCode').value.trim(); if (!code) return; openLabel(P.get(code) || { code, name: $('pfName').value.trim(), price: parseFloat($('pfPrice').value) || 0 }); };
 function prodOpen() { drawPList(); if (PF.mode === 'empty') $('pSearch').focus(); }
@@ -785,6 +879,7 @@ function onScanned(code) {
   SC.last = code; SC.lastAt = now;
   try { navigator.vibrate?.(60); } catch (e) { }
   camStop();   // got a barcode: close the camera, no need to press ปิดกล้อง
+  if (SC.target === 'buy') { SC.target = ''; buyScan(fixCode(code)); return; }
   if (SC.target === 'pfCode') { SC.target = ''; const c = fixCode(code); $('pfCode').value = c; pfCheckCode(); return; }
   handleCode(code);
 }
@@ -1162,6 +1257,7 @@ function startData() {
     $('gateRetry').onclick = () => location.reload();
     $('gateReset').onclick = async () => { $('gateReset').disabled = true; await DB.resetLocalCache(); location.reload(); };
   }, 15000);
+  unsubs.push(DB.watchBuy(list => { BUY.items = list; if (!$('viewBuy').hidden) buyDraw(); buyBadge(); }, e => console.warn('buylist', e)));
   unsubs.push(DB.watchPriceLog(list => { S.priceLog = list; if (!$('viewBills').hidden) renderBills(); }));
   salesDate = null; watchToday();
 }
@@ -1195,7 +1291,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '32';
+const APP_VERSION = '33';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

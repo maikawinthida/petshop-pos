@@ -336,3 +336,17 @@ tr.cancel td:last-child{text-decoration:none}
 .suprow .hint{white-space:nowrap;font-size:13px}
 .pfcam{display:none;flex:0 0 auto;padding:0 14px;width:auto}
 @media (pointer:coarse),(max-width:900px){.pfcam{display:inline-flex;align-items:center;justify-content:center}}
+/* ของหมด */
+.tabs{overflow-x:auto;max-width:100%;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.buyadd .inrow .tin{flex:1;min-width:0}.buyadd .cambtn{padding:0 16px}
+.bres{display:grid;gap:4px;margin-top:6px;max-height:50vh;overflow:auto}
+.bresrow{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:16px}
+.bresrow:hover{border-color:var(--accent)}.bresrow .hint{white-space:nowrap}.bresrow.free{border-style:dashed;color:var(--accent)}
+.bhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.bgrp{margin-bottom:14px}.bgrp h3{margin:0 0 4px;font-size:19px;padding:6px 10px;background:var(--accent-soft);border-radius:8px}
+.btype{font-weight:700;color:var(--muted);font-size:14px;margin:8px 4px 2px}
+.buyrow{display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:1px solid var(--line)}
+.buyrow input[type=checkbox]{width:24px;height:24px;flex:0 0 auto;accent-color:var(--accent)}
+.buyrow .nm{flex:1;min-width:0;cursor:pointer;font-size:16px}.buyrow .bqty{white-space:nowrap;font-size:18px;color:var(--accent);cursor:pointer}
+.buyrow.done .nm,.buyrow.done .bqty{text-decoration:line-through;color:var(--muted)}
+.qchips{gap:6px}.pbbuy{color:var(--accent)}

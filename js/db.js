@@ -5,9 +5,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, memoryLocalCache, doc, collection, onSnapshot,
-  setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion, deleteField }
+  setDoc, deleteDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion, deleteField }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { firebaseConfig } from './config.js?v=32';
+import { firebaseConfig } from './config.js?v=33';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -87,6 +87,11 @@ export function renameSupplier(oldN, newN, list) {
   return patchMany(map);
 }
 export async function catalogReady() { const s = await getDoc(doc(db, 'meta', 'info')); return s.exists() && !!s.data().imported; }
+
+/* ---------- shopping list (ของหมด) ---------- */
+export function watchBuy(cb, onErr) { return onSnapshot(collection(db, 'buylist'), s => cb(s.docs.map(d => ({ ...d.data(), id: d.id }))), onErr); }
+export function saveBuy(item) { const { id, ...rest } = item; return setDoc(doc(db, 'buylist', id), rest, { merge: true }); }
+export function delBuy(ids) { const b = writeBatch(db); for (const id of ids) b.delete(doc(db, 'buylist', id)); return b.commit(); }
 
 /* ---------- sales ---------- */
 // daily/{date} keeps running totals so month/year reports read one doc per day, not every bill

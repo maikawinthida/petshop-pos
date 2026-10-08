@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=32">
+<link rel="stylesheet" href="css/app.css?v=33">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -35,6 +35,7 @@
   <div class="tabs" role="tablist">
     <button id="tabSell" role="tab" aria-selected="true">ขาย</button>
     <button id="tabProd" role="tab" aria-selected="false">ข้อมูลสินค้า</button>
+    <button id="tabBuy" role="tab" aria-selected="false">ของหมด</button>
     <button id="tabBills" role="tab" aria-selected="false">บิลวันนี้</button>
     <button id="tabReport" role="tab" aria-selected="false">รายงาน</button>
   </div>
@@ -104,6 +105,7 @@
       <button class="pb pbdel" id="pbDel"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>ลบ</button>
       <button class="pb" id="pbCancel">ยกเลิก</button>
       <button class="pb" id="pbLabel">พิมพ์บาร์โค้ด</button>
+      <button class="pb pbbuy" id="pbBuy">＋ ลิสต์ของหมด</button>
       <label class="nextchk"><input type="checkbox" id="pfNext"> บันทึกแล้วเพิ่มตัวถัดไป (ใช้ข้อมูลเดิม)</label>
     </div>
     <div class="pempty" id="pfEmpty">
@@ -165,13 +167,6 @@
     </div>
     <div class="bsug" id="pBrandSug" hidden></div>
     <div class="hint scanmsg" id="scanMsg"></div>
-    <div class="camov" id="camOv" hidden>
-      <div class="cambox">
-        <div class="camhead"><b>ส่องบาร์โค้ดให้อยู่ในกรอบ</b><button class="closeb" id="camClose" aria-label="ปิดกล้อง"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>ปิด</button></div>
-        <div id="cam" class="cam" hidden></div>
-        <p class="camtip">สแกนติดแล้วจะปิดเอง</p>
-      </div>
-    </div>
     <div class="ptable" id="pTable">
       <table><thead><tr><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>หน่วย</th><th class="r">ราคา</th><th class="r">ต้นทุน</th><th class="r">สต็อก</th></tr></thead><tbody id="pRows"></tbody></table>
     </div>
@@ -179,6 +174,20 @@
   </section>
 </main>
 
+<main id="viewBuy" hidden>
+  <section class="card buyadd">
+    <div class="phead"><h2>ของหมด / ของต้องซื้อ</h2><span class="hint">ค้นหรือสแกนสินค้า แล้วใส่จำนวนที่จะซื้อ</span></div>
+    <div class="inrow"><input class="tin" id="bq" type="search" enterkeyhint="search" autocomplete="off" placeholder="พิมพ์ชื่อ ยี่ห้อ หรือบาร์โค้ด เช่น มีโอ เปียก"><button class="cambtn" id="bCam" aria-label="สแกนด้วยกล้อง"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button></div>
+    <div id="bRes" class="bres"></div>
+  </section>
+  <section class="card buylist">
+    <div class="bhead"><strong>รายการ <span class="hint" id="bCount"></span></strong><div class="fchips" id="bSup"></div></div>
+    <div id="bList"></div>
+    <div class="empty" id="bEmpty">ยังไม่มีรายการ ค้นหาสินค้าด้านบนเพื่อเพิ่ม</div>
+    <details class="recentbox" id="bDoneBox" hidden><summary>ซื้อแล้ว <span class="hint" id="bDoneCount"></span></summary><div id="bDone"></div>
+      <button class="ghost bad" id="bClear" style="margin-top:8px">ล้างรายการที่ซื้อแล้ว</button></details>
+  </section>
+</main>
 <main id="viewReport" hidden>
   <section class="card rctl">
     <div class="seg big" id="rMode">
@@ -242,6 +251,13 @@
 </main>
 
 </div>
+    <div class="camov" id="camOv" hidden>
+      <div class="cambox">
+        <div class="camhead"><b>ส่องบาร์โค้ดให้อยู่ในกรอบ</b><button class="closeb" id="camClose" aria-label="ปิดกล้อง"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>ปิด</button></div>
+        <div id="cam" class="cam" hidden></div>
+        <p class="camtip">สแกนติดแล้วจะปิดเอง</p>
+      </div>
+    </div>
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
@@ -253,6 +269,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=32"></script>
+<script type="module" src="js/app.js?v=33"></script>
 </body>
 </html>
