@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=36';
-import { OWNER_EMAIL } from './config.js?v=36';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=36';
+import * as DB from './db.js?v=37';
+import { OWNER_EMAIL } from './config.js?v=37';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=37';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -64,7 +64,7 @@ const thaiDigits = s => String(s).replace(/./g, c => TH_KEYS[c] ?? c);
 const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
 // returns the digit string if the text is a barcode typed on the Thai layout, otherwise the text unchanged
 function fixCode(v) { if (!hasThai(v)) return v; const c = thaiDigits(v); return /^\d{3,}$/.test(c) ? c : v; }
-function toast(t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; $('toastRoot').replaceChildren(el); setTimeout(() => el.remove(), 2200); }
+function toast(t, ms = 2200) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; $('toastRoot').replaceChildren(el); setTimeout(() => el.remove(), ms); }
 const modalOpen = () => !!$('modalRoot').firstChild;
 function focusQ() { if (!modalOpen() && !$('viewSell').hidden && !$('appRoot').hidden) $('q').focus(); }
 
@@ -1222,6 +1222,23 @@ function setAutoPrint() { S.autoPrint = false; store.set('autoPrint', false); }
 
 /* ---------- one-time brand clean-up: add Thai/English names and spellings, tag products that had no brand ---------- */
 function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1; const [th, en] = BRAND_RULES[r]; return BRANDS.findIndex(b => norm(b[0]) === norm(th) || (en && norm(b[1]) === norm(en))); }
+// one-time cost update from a supplier catalog (owner's device only; runs once, recorded in meta/info)
+async function applyCostUpdate() {
+  if (!S.isOwner) return;
+  try {
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=37');
+    const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
+    const patch = {}; let changed = 0, loss = 0;
+    for (const [code, c] of Object.entries(COSTS)) {
+      const p = P.get(code); if (!p || !(c > 0) || p.cost === c) continue;
+      DB.logPrice({ code, name: p.name, kind: 'cost', old: p.cost || 0, new: c, supplier: COST_LABEL, email: S.user?.email || '' }).catch(() => { });
+      patch[code] = { c }; p.cost = c; changed++; if (p.price && c >= p.price) loss++;
+    }
+    if (changed) await DB.patchMany(patch);
+    await DB.saveMeta('info', { costs: [...(info?.costs || []), COST_UPDATE_ID] });
+    if (changed) toast(`บันทึกต้นทุนจาก${COST_LABEL} แล้ว ${changed} รายการ` + (loss ? ` (มี ${loss} ตัวที่ทุนสูงกว่าราคาขาย ดูที่ รายงาน › ควรเช็คราคา)` : ''), 9000);
+  } catch (e) { console.warn('cost update', e); }
+}
 async function migrateBrands() {
   try {
     if (!S.isOwner || !BRANDS.length) return;
@@ -1288,7 +1305,7 @@ function showApp() {
   $('gate').hidden = true; $('appRoot').hidden = false;
   rebuildCatalog(); renderSellers(); pfDrawChips(); pfSetMode('empty'); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync();
   if (matchMedia('(max-width: 700px)').matches) tab('prod'); else focusQ();
-  setTimeout(migrateBrands, 2500);
+  setTimeout(migrateBrands, 2500); setTimeout(applyCostUpdate, 6000);
 }
 function noAccess() {
   unsubs.forEach(u => u()); unsubs = [];
@@ -1313,7 +1330,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '36';
+const APP_VERSION = '37';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
