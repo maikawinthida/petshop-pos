@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=33">
+<link rel="stylesheet" href="css/app.css?v=34">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -176,14 +176,14 @@
 
 <main id="viewBuy" hidden>
   <section class="card buyadd">
-    <div class="phead"><h2>ของหมด / ของต้องซื้อ</h2><span class="hint">ค้นหรือสแกนสินค้า แล้วใส่จำนวนที่จะซื้อ</span></div>
-    <div class="inrow"><input class="tin" id="bq" type="search" enterkeyhint="search" autocomplete="off" placeholder="พิมพ์ชื่อ ยี่ห้อ หรือบาร์โค้ด เช่น มีโอ เปียก"><button class="cambtn" id="bCam" aria-label="สแกนด้วยกล้อง"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button></div>
+    <div class="buytitle"><h2>ของหมด / ของต้องซื้อ</h2><p class="hint">ค้นหรือสแกนสินค้าที่หมด แล้วใส่จำนวนที่จะซื้อ</p></div>
+    <div class="inrow nowrap buysearch"><input class="tin" id="bq" type="search" enterkeyhint="search" autocomplete="off" placeholder="ค้นหา เช่น มีโอ เปียก"><button class="cambtn" id="bCam" aria-label="สแกนด้วยกล้อง"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button></div>
     <div id="bRes" class="bres"></div>
   </section>
   <section class="card buylist">
-    <div class="bhead"><strong>รายการ <span class="hint" id="bCount"></span></strong><div class="fchips" id="bSup"></div></div>
+    <div class="bhead"><h2>รายการที่ต้องซื้อ <span class="bcount" id="bCount"></span></h2><div class="fchips" id="bSup"></div></div>
     <div id="bList"></div>
-    <div class="empty" id="bEmpty">ยังไม่มีรายการ ค้นหาสินค้าด้านบนเพื่อเพิ่ม</div>
+    <div class="empty bempty" id="bEmpty"><div class="bico">🛒</div>ยังไม่มีรายการ<br><span class="hint">ค้นหาหรือสแกนสินค้าด้านบนเพื่อเพิ่ม</span></div>
     <details class="recentbox" id="bDoneBox" hidden><summary>ซื้อแล้ว <span class="hint" id="bDoneCount"></span></summary><div id="bDone"></div>
       <button class="ghost bad" id="bClear" style="margin-top:8px">ล้างรายการที่ซื้อแล้ว</button></details>
   </section>
@@ -269,6 +269,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=33"></script>
+<script type="module" src="js/app.js?v=34"></script>
 </body>
 </html>

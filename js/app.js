@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=33';
-import { OWNER_EMAIL } from './config.js?v=33';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=33';
+import * as DB from './db.js?v=34';
+import { OWNER_EMAIL } from './config.js?v=34';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=34';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -404,7 +404,7 @@ function buyDraw() {
     grp.appendChild(buyRow(it, x));
   }
   $('bEmpty').hidden = shown.length > 0;
-  $('bCount').textContent = open.length ? `${shown.length}${BUY.sup ? '/' + open.length : ''} รายการ` : '';
+  $('bCount').textContent = open.length ? `${shown.length}${BUY.sup ? '/' + open.length : ''}` : ''; $('bCount').hidden = !open.length;
   $('bDoneBox').hidden = !done.length; $('bDoneCount').textContent = done.length + ' รายการ';
   const db = $('bDone'); db.innerHTML = ''; done.sort(([a], [b]) => a.name.localeCompare(b.name, 'th')).forEach(([it, x]) => db.appendChild(buyRow(it, x)));
 }
@@ -1291,7 +1291,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '33';
+const APP_VERSION = '34';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
