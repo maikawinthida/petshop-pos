@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=35';
-import { OWNER_EMAIL } from './config.js?v=35';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=35';
+import * as DB from './db.js?v=36';
+import { OWNER_EMAIL } from './config.js?v=36';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=36';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -198,19 +198,14 @@ function findByDigits(v) {
   return ends.length ? ends : (v.length >= 4 ? LIST.filter(p => p.code.includes(v)) : []);
 }
 function addItem(p, qty = 1) {
-  if (p.price > 99999 || !/[^\d\s.,-]/.test(p.name || '')) {   // broken record (e.g. barcodes saved as name/price): fix it first
-    $('notice').innerHTML = `<div class="notice">ข้อมูลสินค้าบาร์โค้ด <b class="num">${esc(p.code)}</b> ผิด (ชื่อ "${esc(String(p.name).slice(0, 30))}" ราคา ${fmt(p.price)}) แก้ก่อนขาย
-      <button class="primary" id="fixBad" style="padding:8px 14px;font-size:15px">แก้ไขสินค้านี้</button></div>`;
-    $('fixBad').onclick = () => { $('notice').innerHTML = ''; editProduct(p.code); };
-    return;
-  }
+  if (p.price > 99999 || !/[^\d\s.,-]/.test(p.name || '')) { notFound(p.code, p); return; }   // broken record (barcodes saved as name/price): fix it right here
   const cart = T().cart; const ex = cart.find(i => i.code === p.code);
   if (ex) { ex.qty += qty; cart.splice(cart.indexOf(ex), 1); cart.unshift(ex); }
   else cart.unshift({ code: p.code, name: p.name, unit: p.unit, price: p.price, qty });
   lastAdded = p.code; $('notice').innerHTML = ''; render();
 }
-function notFound(code) {
-  $('notice').innerHTML = `<div class="notice">ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> เพิ่มเป็นสินค้าใหม่ได้เลย
+function notFound(code, old) {   // old = existing product whose saved name/price is broken: same box, fixes it
+  $('notice').innerHTML = `<div class="notice">${old ? `สินค้าบาร์โค้ด <b class="num">${esc(code)}</b> ข้อมูลผิด ใส่ชื่อกับราคาใหม่` : `ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> เพิ่มเป็นสินค้าใหม่ได้เลย`}
     <form id="addForm"><span class="brandbox" style="flex:1 1 150px"><input id="nBrand" placeholder="ยี่ห้อ เช่น sm, สม" autocomplete="off" style="width:100%"><div class="bsug drop qa" id="nBrandSug" hidden></div></span>
     <input id="nName" placeholder="ชื่อสินค้า เช่น แมวโต ทูน่า 85g" required autocomplete="off" style="flex:2 1 200px">
     <input id="nUnit" placeholder="หน่วย" style="flex:0 1 90px"><input id="nPrice" placeholder="ราคา" inputmode="decimal" required style="flex:0 1 90px">
@@ -220,6 +215,7 @@ function notFound(code) {
   nb.addEventListener('input', sug); nb.addEventListener('focus', sug);
   nb.addEventListener('blur', () => setTimeout(() => { box.hidden = true; }, 200));
   nb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const c = box.querySelector('.bchip'); if (c && !box.hidden) c.click(); else $('nName').focus(); } });
+  if (old) { if (old.brand >= 0 && BRANDS[old.brand]) nb.value = BRANDS[old.brand][0]; if (old.unit && /[^\d\s]/.test(old.unit)) $('nUnit').value = old.unit; }
   nb.focus();
   // the scanner types digits + Enter: if that lands in these boxes, it's the next product, not a name or price
   $('addForm').addEventListener('keydown', e => {
@@ -238,12 +234,14 @@ function notFound(code) {
     if (!/[^\d\s.,-]/.test(nm)) { toast('ชื่อสินค้าต้องเป็นตัวหนังสือ ไม่ใช่ตัวเลขบาร์โค้ด'); $('nName').value = ''; $('nName').focus(); return; }
     if (!(pr >= 0) || pr > 99999) { toast('ราคาผิด (ต้องไม่เกิน 99,999 บาท) ใส่ใหม่อีกที'); $('nPrice').value = ''; $('nPrice').focus(); return; }
     const bv = nb.value.trim(); let name = $('nName').value.trim();
-    let bi = bv ? brandIndex(bv) : brandFromName(name);
+    let bi = bv ? brandIndex(bv) : (old && old.brand >= 0 ? old.brand : brandFromName(name));
     if (bi < 0 && bv) { BRANDS.push([bv, '', 0, []]); bi = BRANDS.length - 1; DB.addBrand(bv, '').catch(fail); }
     if (bi >= 0 && bv) { const [th, en] = BRANDS[bi]; const n = norm(name); if (!n.includes(norm(th)) && !(en && n.includes(norm(en)))) name = th + ' ' + name; }
-    const p = { code, name, unit: $('nUnit').value.trim(), price: parseFloat($('nPrice').value) || 0, rank: 0, brand: bi, type: 'other', animal: '', big: 0, cost: 0, supplier: '' };
-    p.key = mkKey(p); P.set(code, p); LIST.push(p); DB.saveProduct(p).catch(fail);
-    addItem(p); toast('เพิ่มสินค้าใหม่แล้ว'); focusQ();
+    const p = { ...(old || { rank: 0, type: 'other', animal: '', big: 0, cost: 0, supplier: '' }), code, name, unit: $('nUnit').value.trim(), price: parseFloat($('nPrice').value) || 0, brand: bi };
+    p.key = mkKey(p);
+    if (old) Object.assign(old, p); else { P.set(code, p); LIST.push(p); }
+    DB.saveProduct(old || p).catch(fail);
+    $('notice').innerHTML = ''; addItem(old || p); toast(old ? 'แก้ข้อมูลสินค้าแล้ว' : 'เพิ่มสินค้าใหม่แล้ว'); focusQ();
   };
 }
 $('q').addEventListener('input', e => { const v = e.target.value; if (/[^\d\s*\-]/.test(thaiDigits(v))) { e.target.value = ''; openFinder(v); } });
@@ -1315,7 +1313,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '35';
+const APP_VERSION = '36';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
