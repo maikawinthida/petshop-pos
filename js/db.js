@@ -7,7 +7,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAut
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, memoryLocalCache, doc, collection, onSnapshot,
   setDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion, deleteField }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { firebaseConfig } from './config.js?v=30';
+import { firebaseConfig } from './config.js?v=31';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -79,6 +79,12 @@ export async function patchMany(map) {
   const byChunk = {};
   for (const [code, f] of Object.entries(map)) (byChunk[chunkOf(code)] ||= {})[code] = f;
   for (const [c, items] of Object.entries(byChunk)) await setDoc(doc(db, 'catalog', c), { items }, { merge: true });
+}
+// rename a supplier on every product that uses it (main supplier and per-supplier cost list)
+export function renameSupplier(oldN, newN, list) {
+  const map = {};
+  for (const it of list) { const f = {}; if (it.s) f.s = newN; if (it.sp) f.sp = { [newN]: it.sp, [oldN]: deleteField() }; map[it.code] = f; }
+  return patchMany(map);
 }
 export async function catalogReady() { const s = await getDoc(doc(db, 'meta', 'info')); return s.exists() && !!s.data().imported; }
 

@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=30';
-import { OWNER_EMAIL } from './config.js?v=30';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=30';
+import * as DB from './db.js?v=31';
+import { OWNER_EMAIL } from './config.js?v=31';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=31';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -492,7 +492,7 @@ function pfDrawChips(vals = {}) {
   fillSelect('pfAnimal', PANIMALS, cur('pfAnimal'), '— ไม่ระบุ —');
   fillSelect('pfType', PTYPES, cur('pfType'), '— ไม่ระบุ —');
   fillSelect('pfSup', supList(), cur('pfSup'), '— ไม่ระบุ —');
-  $('pfSup').insertAdjacentHTML('beforeend', opt('__new', '+ เพิ่มร้านใหม่…'));
+  $('pfSup').insertAdjacentHTML('beforeend', opt('__new', '+ เพิ่มร้านใหม่…') + opt('__edit', '✎ แก้ไขรายชื่อร้าน…'));
 }
 function addSupplier(name) {
   name = name.trim(); if (!name) return;
@@ -504,7 +504,54 @@ function askNewSupplier(done) {
   const ok = () => { const v = inp.value.trim(); closeModal(); if (v) { addSupplier(v); done(v); } else done(''); };
   s.querySelector('#nsNo').onclick = () => { closeModal(); done(''); }; s.querySelector('#nsOk').onclick = ok; inp.onkeydown = e => { if (e.key === 'Enter') ok(); };
 }
-$('pfSup').onchange = () => { if ($('pfSup').value === '__new') askNewSupplier(v => pfDrawChips({ pfSup: v })); };
+$('pfSup').dataset.prev = '';
+$('pfSup').addEventListener('focus', () => { $('pfSup').dataset.prev = $('pfSup').value; });
+$('pfSup').onchange = () => {
+  const v = $('pfSup').value, prev = $('pfSup').dataset.prev || '';
+  if (v === '__new') askNewSupplier(n => pfDrawChips({ pfSup: n || prev }));
+  else if (v === '__edit') { pfDrawChips({ pfSup: prev }); manageSuppliers(); }
+  else $('pfSup').dataset.prev = v;
+};
+// edit the supplier list: rename (products follow the new name), remove, add
+function manageSuppliers() {
+  const orig = supList().slice();
+  const s = openModal(`<h2>รายชื่อร้านที่รับของ</h2><p class="hint" style="margin:0">แก้ชื่อในช่องได้เลย · กด ลบ เพื่อเอาออกจากรายการ</p>
+    <div id="supRows" class="suprows"></div>
+    <div class="suprow"><input class="tin" id="supNew" placeholder="เพิ่มร้านใหม่"><button class="ghost" id="supAdd">+ เพิ่ม</button></div>
+    <div class="mrow"><button class="ghost" id="supNo">ยกเลิก</button><button class="primary" id="supOk">บันทึก</button></div>`);
+  const rows = orig.map(n => ({ old: n, name: n, del: false }));
+  const draw = () => {
+    const box = s.querySelector('#supRows'); box.innerHTML = '';
+    rows.forEach(r => {
+      if (r.del) return;
+      const used = r.old ? LIST.filter(p => p.supplier === r.old || p.sp?.[r.old]).length : 0;
+      const d = document.createElement('div'); d.className = 'suprow';
+      d.innerHTML = `<input class="tin" value="${esc(r.name)}"><span class="hint">${used ? used + ' สินค้า' : ''}</span><button class="ghost bad">ลบ</button>`;
+      d.querySelector('input').oninput = e => { r.name = e.target.value; };
+      d.querySelector('button').onclick = () => { r.del = true; draw(); };
+      box.appendChild(d);
+    });
+  };
+  draw();
+  const add = () => { const v = s.querySelector('#supNew').value.trim(); if (!v) return; rows.push({ old: '', name: v, del: false }); s.querySelector('#supNew').value = ''; draw(); };
+  s.querySelector('#supAdd').onclick = add; s.querySelector('#supNew').onkeydown = e => { if (e.key === 'Enter') add(); };
+  s.querySelector('#supNo').onclick = closeModal;
+  s.querySelector('#supOk').onclick = () => {
+    const keep = rows.filter(r => !r.del && r.name.trim()), names = [];
+    for (const r of keep) { const n = r.name.trim(); if (!names.includes(n)) names.push(n); }
+    let moved = 0;
+    for (const r of keep) {
+      const n = r.name.trim(); if (!r.old || r.old === n) continue;
+      const hit = LIST.filter(p => p.supplier === r.old || p.sp?.[r.old]);
+      DB.renameSupplier(r.old, n, hit.map(p => ({ code: p.code, s: p.supplier === r.old, sp: p.sp?.[r.old] }))).catch(fail);
+      for (const p of hit) { if (p.supplier === r.old) p.supplier = n; if (p.sp?.[r.old]) { p.sp = { ...p.sp, [n]: p.sp[r.old] }; delete p.sp[r.old]; } }
+      moved += hit.length;
+    }
+    S.settings.suppliers = names; store.set('settingsCache', S.settings); DB.saveMeta('settings', { suppliers: names }).catch(fail); $('setSups').value = names.join(', ');
+    closeModal(); pfDrawChips(); if (PF.code && P.get(PF.code)) pfShowInfo(P.get(PF.code));
+    toast('บันทึกรายชื่อร้านแล้ว' + (moved ? ` (เปลี่ยนชื่อในสินค้า ${moved} รายการ)` : ''));
+  };
+}
 function pfName() {
   const bi = brandIndex($('pfBrand').value); const b = bi >= 0 ? BRANDS[bi][0] : $('pfBrand').value.trim();
   const isNew = !!($('pfBrand').value.trim() && bi < 0);
@@ -1146,7 +1193,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '30';
+const APP_VERSION = '31';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

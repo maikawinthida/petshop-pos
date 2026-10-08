@@ -330,3 +330,7 @@ tr.cancel td:last-child{text-decoration:none}
 .pbottom{display:flex;gap:10px;margin-top:4px}
 .pbottom .pb{flex:0 0 auto;padding:14px 18px}
 .pbottom .pbig{flex:1;font-size:19px;padding:14px;background:#1f6b3a;border-color:#1f6b3a;color:#fff}
+.suprows{display:grid;gap:8px;max-height:50vh;overflow:auto}
+.suprow{display:flex;gap:8px;align-items:center}
+.suprow .tin{flex:1;min-width:0}
+.suprow .hint{white-space:nowrap;font-size:13px}
