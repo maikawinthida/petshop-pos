@@ -365,3 +365,5 @@ tr.cancel td:last-child{text-decoration:none}
 @media (max-width:700px){.buyadd,.buylist{padding:14px}.buytitle h2{font-size:20px}}
 .pfilters{display:grid;gap:6px}.pfilters .flabel{min-width:52px;font-weight:600;color:var(--muted);font-size:14px}
 @media (max-width:700px){.pfilters .frow{flex-wrap:nowrap}.pfilters .fchips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.pfilters .fchips::-webkit-scrollbar{display:none}.pfilters .chip{white-space:nowrap}}
+/* phone: grid children may shrink, so wide chip rows scroll instead of widening the page */
+#viewProd,#viewBuy{grid-template-columns:minmax(0,1fr)}#viewProd>*,#viewBuy>*,.plist>*,.pfilters,.pfilters .frow,.pfilters .fchips{min-width:0}

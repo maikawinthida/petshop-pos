@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=40';
-import { OWNER_EMAIL } from './config.js?v=40';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=40';
+import * as DB from './db.js?v=41';
+import { OWNER_EMAIL } from './config.js?v=41';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=41';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1264,7 +1264,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=40');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=41');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1373,7 +1373,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '40';
+const APP_VERSION = '41';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
