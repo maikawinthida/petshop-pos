@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=31">
+<link rel="stylesheet" href="css/app.css?v=32">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -113,7 +113,7 @@
     <fieldset id="pfFields" class="pfields" disabled>
       <div class="fgrid">
         <div class="field2 span2"><label for="pfCode">บาร์โค้ด <span class="req">*</span></label>
-          <div class="inrow"><input class="tin num" id="pfCode" inputmode="numeric" autocomplete="off" placeholder="ยิงบาร์โค้ด แล้ว Enter"><button type="button" class="ghost" id="pfGen">เพิ่มรหัสสินค้า</button></div>
+          <div class="inrow"><input class="tin num" id="pfCode" inputmode="numeric" autocomplete="off" placeholder="ยิงบาร์โค้ด แล้ว Enter"><button type="button" class="cambtn pfcam" id="pfCam" aria-label="สแกนบาร์โค้ดด้วยกล้อง"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button><button type="button" class="ghost" id="pfGen">เพิ่มรหัสสินค้า</button></div>
           <div class="inrow" id="pfGenBox" hidden><button type="button" class="ghost" id="pfRand">สุ่มรหัส</button><button type="button" class="ghost" id="pfOwn">พิมพ์เอง</button></div>
           <div id="pfCodeMsg" class="hint"></div></div>
         <div class="field2 span4"><label for="pfName">ชื่อสินค้า <span class="req">*</span> <button type="button" class="linkbtn" id="pfAuto" hidden>ใช้ชื่ออัตโนมัติ</button></label>
@@ -253,6 +253,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=31"></script>
+<script type="module" src="js/app.js?v=32"></script>
 </body>
 </html>

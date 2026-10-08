@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=31';
-import { OWNER_EMAIL } from './config.js?v=31';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=31';
+import * as DB from './db.js?v=32';
+import { OWNER_EMAIL } from './config.js?v=32';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=32';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -571,7 +571,7 @@ function pfSetMode(mode) {
   $('pfFields').disabled = !(mode === 'edit' || mode === 'new');
   $('pfFields').hidden = mode === 'empty'; $('pfEmpty').hidden = mode !== 'empty';
   $('pfCode').readOnly = mode === 'edit';
-  $('pfGen').hidden = mode !== 'new';
+  $('pfGen').hidden = mode !== 'new'; $('pfCam').hidden = mode !== 'new';
   const has = !!(PF.code && P.has(PF.code));
   $('pbAdd').disabled = mode === 'edit';
   $('pbEdit').disabled = mode !== 'view';
@@ -774,7 +774,8 @@ async function camStart() {
   } finally { $('camBtn').disabled = false; }
 }
 async function camStop() { try { await SC.cam?.stop(); SC.cam?.clear(); } catch (e) { } SC.camOn = false; $('cam').hidden = true; $('camOv').hidden = true; $('camLbl').textContent = 'สแกนด้วยกล้อง'; }
-$('camBtn').onclick = () => SC.camOn ? camStop() : camStart();
+$('camBtn').onclick = () => { SC.target = ''; SC.camOn ? camStop() : camStart(); };
+$('pfCam').onclick = () => { SC.target = 'pfCode'; if (!SC.camOn) camStart(); };
 $('camClose').onclick = () => camStop();
 $('camOv').addEventListener('click', e => { if (e.target === $('camOv')) camStop(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('camOv').hidden) camStop(); });
@@ -784,6 +785,7 @@ function onScanned(code) {
   SC.last = code; SC.lastAt = now;
   try { navigator.vibrate?.(60); } catch (e) { }
   camStop();   // got a barcode: close the camera, no need to press ปิดกล้อง
+  if (SC.target === 'pfCode') { SC.target = ''; const c = fixCode(code); $('pfCode').value = c; pfCheckCode(); return; }
   handleCode(code);
 }
 
@@ -1193,7 +1195,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '31';
+const APP_VERSION = '32';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

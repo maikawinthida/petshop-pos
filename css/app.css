@@ -334,3 +334,5 @@ tr.cancel td:last-child{text-decoration:none}
 .suprow{display:flex;gap:8px;align-items:center}
 .suprow .tin{flex:1;min-width:0}
 .suprow .hint{white-space:nowrap;font-size:13px}
+.pfcam{display:none;flex:0 0 auto;padding:0 14px;width:auto}
+@media (pointer:coarse),(max-width:900px){.pfcam{display:inline-flex;align-items:center;justify-content:center}}
