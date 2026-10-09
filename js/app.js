@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=41';
-import { OWNER_EMAIL } from './config.js?v=41';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=41';
+import * as DB from './db.js?v=42';
+import { OWNER_EMAIL } from './config.js?v=42';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=42';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1264,7 +1264,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=41');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=42');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1276,6 +1276,30 @@ async function applyCostUpdate() {
     await DB.saveMeta('info', { costs: [...(info?.costs || []), COST_UPDATE_ID] });
     if (changed) toast(`บันทึกต้นทุนจาก${COST_LABEL} แล้ว ${changed} รายการ` + (loss ? ` (มี ${loss} ตัวที่ทุนสูงกว่าราคาขาย ดูที่ รายงาน › ควรเช็คราคา)` : ''), 9000);
   } catch (e) { console.warn('cost update', e); }
+}
+// one-time list additions shipped with the app (e.g. a restock order written down for the owner)
+async function applySeeds() {
+  if (!S.isOwner) return;
+  try {
+    const { SEEDS } = await import('./seeds.js?v=42');
+    const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0;
+    for (const sd of SEEDS) {
+      if (done.includes(sd.id)) continue;
+      for (const x of sd.items) {
+        const p = P.get(x.code), bi = p ? p.brand : -1;
+        if (p && sd.fix) {   // fill in missing type/animal on the product too (e.g. dog cans saved as "อื่นๆ")
+          const f = {}; if (!p.type || p.type === 'other') { f.t = sd.fix.t; p.type = sd.fix.t; } if (!p.animal) { f.a = sd.fix.a; p.animal = sd.fix.a; }
+          if (Object.keys(f).length) { p.key = mkKey(p); DB.patchProduct(p.code, f).catch(() => { }); }
+        }
+        const it = { id: x.id, code: p ? x.code : '', name: p?.name || x.name, qty: sd.qty, note: '', done: false, at: Date.now(), by: S.user?.email || '',
+          bt: bi >= 0 && BRANDS[bi] ? BRANDS[bi][0] : 'เพ็ทเอท', t: p?.type || 'wet', a: p?.animal || 'dog', s: p?.supplier || '' };
+        if (!BUY.items.some(i => i.id === it.id)) BUY.items.push(it);
+        DB.saveBuy(it).catch(() => { }); n++;
+      }
+      done.push(sd.id);
+    }
+    if (n) { await DB.saveMeta('info', { seeds: done }); buyBadge(); if (!$('viewBuy').hidden) buyDraw(); toast(`เพิ่มในลิสต์ของหมดแล้ว ${n} รายการ`, 6000); }
+  } catch (e) { console.warn('seeds', e); }
 }
 async function migrateBrands() {
   try {
@@ -1348,7 +1372,7 @@ function showApp() {
   $('gate').hidden = true; $('appRoot').hidden = false;
   rebuildCatalog(); renderSellers(); pfDrawChips(); pfSetMode('empty'); fillSettings(); setAutoPrint(S.autoPrint); render(); setSync();
   if (matchMedia('(max-width: 700px)').matches) tab('prod'); else focusQ();
-  setTimeout(migrateBrands, 2500); setTimeout(applyCostUpdate, 6000);
+  setTimeout(migrateBrands, 2500); setTimeout(applyCostUpdate, 6000); setTimeout(applySeeds, 9000);
 }
 function noAccess() {
   unsubs.forEach(u => u()); unsubs = [];
@@ -1373,7 +1397,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '41';
+const APP_VERSION = '42';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
