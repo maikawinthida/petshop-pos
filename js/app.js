@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=43';
-import { OWNER_EMAIL } from './config.js?v=43';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=43';
+import * as DB from './db.js?v=44';
+import { OWNER_EMAIL } from './config.js?v=44';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=44';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1265,7 +1265,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=43');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=44');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1282,18 +1282,18 @@ async function applyCostUpdate() {
 async function applySeeds() {
   if (!S.isOwner) return;
   try {
-    const { SEEDS } = await import('./seeds.js?v=43');
+    const { SEEDS } = await import('./seeds.js?v=44');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0;
     for (const sd of SEEDS) {
       if (done.includes(sd.id)) continue;
       for (const x of sd.items) {
         const p = P.get(x.code);
         if (p && sd.fix) {   // fill in missing type/animal on the product too (e.g. dog cans saved as "อื่นๆ")
-          const f = {}; if (!p.type || p.type === 'other') { f.t = sd.fix.t; p.type = sd.fix.t; } if (!p.animal) { f.a = sd.fix.a; p.animal = sd.fix.a; }
+          const f = {}; if (!p.type || p.type === 'other' || (sd.fix.force && p.type !== sd.fix.t)) { f.t = sd.fix.t; p.type = sd.fix.t; } if (!p.animal || (sd.fix.force && p.animal !== sd.fix.a)) { f.a = sd.fix.a; p.animal = sd.fix.a; }
           const fb = sd.fix.brand ? BRANDS.findIndex(b => b[0] === sd.fix.brand) : -1; if (fb >= 0 && !(p.brand >= 0)) { f.b = fb; p.brand = fb; }
           if (Object.keys(f).length) { p.key = mkKey(p); DB.patchProduct(p.code, f).catch(() => { }); }
         }
-        const it = { id: x.id, code: p ? x.code : '', name: p?.name || x.name, qty: sd.qty, note: '', done: false, at: Date.now(), by: S.user?.email || '',
+        const it = { id: x.id, code: p ? x.code : '', name: p?.name || x.name, qty: x.qty || sd.qty, note: x.note || sd.note || '', done: false, at: Date.now(), by: S.user?.email || '',
           bt: p && p.brand >= 0 && BRANDS[p.brand] ? BRANDS[p.brand][0] : (sd.fix?.brand || ''), t: p?.type || sd.fix?.t || 'other', a: p?.animal || sd.fix?.a || '', s: p?.supplier || '' };
         if (!BUY.items.some(i => i.id === it.id)) BUY.items.push(it);
         DB.saveBuy(it).catch(() => { }); n++;
@@ -1399,7 +1399,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '43';
+const APP_VERSION = '44';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
