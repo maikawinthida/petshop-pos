@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=51';
-import { OWNER_EMAIL } from './config.js?v=51';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=51';
+import * as DB from './db.js?v=52';
+import { OWNER_EMAIL } from './config.js?v=52';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=52';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1265,7 +1265,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=51');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=52');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1282,7 +1282,7 @@ async function applyCostUpdate() {
 async function applySeeds() {
   if (!S.isOwner) return;
   try {
-    const { SEEDS } = await import('./seeds.js?v=51');
+    const { SEEDS } = await import('./seeds.js?v=52');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0;
     for (const sd of SEEDS) {
       if (done.includes(sd.id)) continue;
@@ -1399,7 +1399,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '51';
+const APP_VERSION = '52';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
