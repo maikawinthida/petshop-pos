@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=42';
-import { OWNER_EMAIL } from './config.js?v=42';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=42';
+import * as DB from './db.js?v=43';
+import { OWNER_EMAIL } from './config.js?v=43';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=43';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -369,7 +369,8 @@ const animalLabel = a => ANIMALS.find(([v]) => v === a && v)?.[1] || '';
 function buyInfo(it) {   // live product data when linked, else what was saved with the item
   const p = it.code ? P.get(it.code) : null;
   const bi = p ? p.brand : -1;
-  return { p, name: p?.name || it.name, brand: bi >= 0 && BRANDS[bi] ? BRANDS[bi][0] + (BRANDS[bi][1] ? ' · ' + BRANDS[bi][1] : '') : (it.bt || 'ไม่มียี่ห้อ'),
+  const b = bi >= 0 && BRANDS[bi] ? BRANDS[bi] : (it.bt ? BRANDS.find(x => x[0] === it.bt) || [it.bt, ''] : null);
+  return { p, name: p?.name || it.name, brand: b ? b[0] + (b[1] ? ' · ' + b[1] : '') : 'ไม่มียี่ห้อ',
     type: p ? (p.type || 'other') : (it.t || 'other'), animal: p ? p.animal : (it.a || ''), sup: p?.supplier || it.s || '' };
 }
 function buyBadge() { const n = BUY.items.filter(i => !i.done).length; $('tabBuy').textContent = n ? `ของหมด (${n})` : 'ของหมด'; }
@@ -1264,7 +1265,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=42');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=43');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1281,18 +1282,19 @@ async function applyCostUpdate() {
 async function applySeeds() {
   if (!S.isOwner) return;
   try {
-    const { SEEDS } = await import('./seeds.js?v=42');
+    const { SEEDS } = await import('./seeds.js?v=43');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0;
     for (const sd of SEEDS) {
       if (done.includes(sd.id)) continue;
       for (const x of sd.items) {
-        const p = P.get(x.code), bi = p ? p.brand : -1;
+        const p = P.get(x.code);
         if (p && sd.fix) {   // fill in missing type/animal on the product too (e.g. dog cans saved as "อื่นๆ")
           const f = {}; if (!p.type || p.type === 'other') { f.t = sd.fix.t; p.type = sd.fix.t; } if (!p.animal) { f.a = sd.fix.a; p.animal = sd.fix.a; }
+          const fb = sd.fix.brand ? BRANDS.findIndex(b => b[0] === sd.fix.brand) : -1; if (fb >= 0 && !(p.brand >= 0)) { f.b = fb; p.brand = fb; }
           if (Object.keys(f).length) { p.key = mkKey(p); DB.patchProduct(p.code, f).catch(() => { }); }
         }
         const it = { id: x.id, code: p ? x.code : '', name: p?.name || x.name, qty: sd.qty, note: '', done: false, at: Date.now(), by: S.user?.email || '',
-          bt: bi >= 0 && BRANDS[bi] ? BRANDS[bi][0] : 'เพ็ทเอท', t: p?.type || 'wet', a: p?.animal || 'dog', s: p?.supplier || '' };
+          bt: p && p.brand >= 0 && BRANDS[p.brand] ? BRANDS[p.brand][0] : (sd.fix?.brand || ''), t: p?.type || sd.fix?.t || 'other', a: p?.animal || sd.fix?.a || '', s: p?.supplier || '' };
         if (!BUY.items.some(i => i.id === it.id)) BUY.items.push(it);
         DB.saveBuy(it).catch(() => { }); n++;
       }
@@ -1397,7 +1399,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '42';
+const APP_VERSION = '43';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
