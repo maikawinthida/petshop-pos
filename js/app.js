@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=57';
-import { OWNER_EMAIL } from './config.js?v=57';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=57';
+import * as DB from './db.js?v=58';
+import { OWNER_EMAIL } from './config.js?v=58';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=58';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1265,7 +1265,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=57');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=58');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1282,8 +1282,15 @@ async function applyCostUpdate() {
 async function applySeeds() {
   if (!S.isOwner) return;
   try {
-    const { SEEDS } = await import('./seeds.js?v=57');
-    const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0;
+    const { SEEDS, CLEARS = [] } = await import('./seeds.js?v=58');
+    const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
+    for (const c of CLEARS) {
+      if (done.includes(c.id)) continue;
+      const ids = c.items.filter(id => true); BUY.items = BUY.items.filter(i => !ids.includes(i.id));
+      for (let k = 0; k < ids.length; k += 400) await DB.delBuy(ids.slice(k, k + 400)).catch(() => { });
+      for (const sid of [c.id, ...(c.seeds || [])]) if (!done.includes(sid)) done.push(sid);
+      cleared += ids.length;
+    }
     for (const sd of SEEDS) {
       if (done.includes(sd.id)) continue;
       for (const x of sd.items) {
@@ -1300,7 +1307,7 @@ async function applySeeds() {
       }
       done.push(sd.id);
     }
-    if (n) { await DB.saveMeta('info', { seeds: done }); buyBadge(); if (!$('viewBuy').hidden) buyDraw(); toast(`เพิ่มในลิสต์ของหมดแล้ว ${n} รายการ`, 6000); }
+    if (n || cleared) { await DB.saveMeta('info', { seeds: done }); buyBadge(); if (!$('viewBuy').hidden) buyDraw(); toast(cleared ? 'ล้างรายการ Pet8 ที่สั่งแล้วออกจากของหมดแล้ว' : `เพิ่มในลิสต์ของหมดแล้ว ${n} รายการ`, 6000); }
   } catch (e) { console.warn('seeds', e); }
 }
 async function migrateBrands() {
@@ -1399,7 +1406,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '57';
+const APP_VERSION = '58';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
