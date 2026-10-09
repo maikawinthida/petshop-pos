@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=58';
-import { OWNER_EMAIL } from './config.js?v=58';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=58';
+import * as DB from './db.js?v=59';
+import { OWNER_EMAIL } from './config.js?v=59';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=59';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -440,7 +440,14 @@ function buyDraw() {
   const box = $('bList'); box.innerHTML = '';
   let lastB = null, lastT = null, grp = null;
   for (const [it, x] of shown) {
-    if (x.brand !== lastB) { grp = document.createElement('div'); grp.className = 'bgrp'; grp.innerHTML = `<h3>${esc(x.brand)}</h3>`; box.appendChild(grp); lastB = x.brand; lastT = null; }
+    if (x.brand !== lastB) {
+      grp = document.createElement('div'); grp.className = 'bgrp'; grp.innerHTML = `<h3><span>${esc(x.brand)}</span><button class="bdelall" title="ลบทุกรายการของยี่ห้อนี้">ลบทั้งหมด</button></h3>`; box.appendChild(grp);
+      const brand = x.brand; grp.querySelector('.bdelall').onclick = () => {
+        const ids = shown.filter(([, y]) => y.brand === brand).map(([i]) => i.id);
+        confirmBox(`ลบ ${brand} ทั้งหมด ${ids.length} รายการออกจากของหมด?`, 'ลบ', () => { BUY.items = BUY.items.filter(i => !ids.includes(i.id)); DB.delBuy(ids).catch(fail); buyDraw(); buyBadge(); toast('ลบแล้ว'); });
+      };
+      lastB = x.brand; lastT = null;
+    }
     const tl = typeLabel(x.type);
     if (tl !== lastT) { const h = document.createElement('div'); h.className = 'btype'; h.textContent = tl; grp.appendChild(h); lastT = tl; }
     grp.appendChild(buyRow(it, x));
@@ -1265,7 +1272,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=58');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=59');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1281,12 +1288,15 @@ async function applyCostUpdate() {
 // one-time list additions shipped with the app (e.g. a restock order written down for the owner)
 async function applySeeds() {
   if (!S.isOwner) return;
+  if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [] } = await import('./seeds.js?v=58');
+    const { SEEDS, CLEARS = [] } = await import('./seeds.js?v=59');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     for (const c of CLEARS) {
       if (done.includes(c.id)) continue;
-      const ids = c.items.filter(id => true); BUY.items = BUY.items.filter(i => !ids.includes(i.id));
+      const re = c.match ? new RegExp(c.match, 'i') : null;
+      const ids = c.items ? c.items.slice() : BUY.items.filter(i => { const x = buyInfo(i); return x.brand.split(' · ')[0] === c.brand || (re && re.test(x.name)); }).map(i => i.id);
+      BUY.items = BUY.items.filter(i => !ids.includes(i.id));
       for (let k = 0; k < ids.length; k += 400) await DB.delBuy(ids.slice(k, k + 400)).catch(() => { });
       for (const sid of [c.id, ...(c.seeds || [])]) if (!done.includes(sid)) done.push(sid);
       cleared += ids.length;
@@ -1372,7 +1382,7 @@ function startData() {
     $('gateRetry').onclick = () => location.reload();
     $('gateReset').onclick = async () => { $('gateReset').disabled = true; await DB.resetLocalCache(); location.reload(); };
   }, 15000);
-  unsubs.push(DB.watchBuy(list => { BUY.items = list; if (!$('viewBuy').hidden) buyDraw(); buyBadge(); }, e => console.warn('buylist', e)));
+  unsubs.push(DB.watchBuy(list => { BUY.items = list; BUY.loaded = true; if (!$('viewBuy').hidden) buyDraw(); buyBadge(); }, e => console.warn('buylist', e)));
   unsubs.push(DB.watchPriceLog(list => { S.priceLog = list; if (!$('viewBills').hidden) renderBills(); }));
   salesDate = null; watchToday();
 }
@@ -1406,7 +1416,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '58';
+const APP_VERSION = '59';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
