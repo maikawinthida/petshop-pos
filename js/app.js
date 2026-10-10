@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=73';
-import { OWNER_EMAIL } from './config.js?v=73';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=73';
+import * as DB from './db.js?v=74';
+import { OWNER_EMAIL } from './config.js?v=74';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=74';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1347,29 +1347,39 @@ function setAutoPrint() { S.autoPrint = false; store.set('autoPrint', false); }
 
 /* ---------- one-time brand clean-up: add Thai/English names and spellings, tag products that had no brand ---------- */
 function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1; const [th, en] = BRAND_RULES[r]; return BRANDS.findIndex(b => norm(b[0]) === norm(th) || (en && norm(b[1]) === norm(en))); }
-// one-time cost update from a supplier catalog (owner's device only; runs once, recorded in meta/info)
+// one-time cost updates from supplier catalogs / invoices (owner's device only; each runs once, recorded in meta/info)
+const COST_FILES = ['costs-pet8.js', 'costs-petmart.js'];
 async function applyCostUpdate() {
   if (!S.isOwner) return;
-  try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=73');
-    const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
-    const patch = {}; let changed = 0, loss = 0;
-    for (const [code, c] of Object.entries(COSTS)) {
-      const p = P.get(code); if (!p || !(c > 0) || p.cost === c) continue;
-      DB.logPrice({ code, name: p.name, kind: 'cost', old: p.cost || 0, new: c, supplier: COST_LABEL, email: S.user?.email || '' }).catch(() => { });
-      patch[code] = { c }; p.cost = c; changed++; if (p.price && c >= p.price) loss++;
-    }
-    if (changed) await DB.patchMany(patch);
-    await DB.saveMeta('info', { costs: [...(info?.costs || []), COST_UPDATE_ID] });
-    if (changed) toast(`บันทึกต้นทุนจาก${COST_LABEL} แล้ว ${changed} รายการ` + (loss ? ` (มี ${loss} ตัวที่ทุนสูงกว่าราคาขาย ดูที่ รายงาน › ควรเช็คราคา)` : ''), 9000);
-  } catch (e) { console.warn('cost update', e); }
+  for (const f of COST_FILES) {
+    try {
+      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=74`);
+      const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) continue;
+      if (SUPPLIER && !supList().includes(SUPPLIER)) { S.settings.suppliers = [...supList(), SUPPLIER]; store.set('settingsCache', S.settings); await DB.saveMeta('settings', { suppliers: S.settings.suppliers }); }
+      const patch = {}; let changed = 0, loss = 0, found = 0;
+      for (const [code, c] of Object.entries(COSTS)) {
+        const p = P.get(code); if (!p || !(c > 0)) continue; found++;
+        const pt = {};
+        if (SUPPLIER) { const v = { c, d: DATE || today() }; p.sp = { ...(p.sp || {}), [SUPPLIER]: v }; pt.sp = { [SUPPLIER]: v }; }
+        if (p.cost !== c) {
+          DB.logPrice({ code, name: p.name, kind: 'cost', old: p.cost || 0, new: c, supplier: SUPPLIER || COST_LABEL, email: S.user?.email || '' }).catch(() => { });
+          pt.c = c; p.cost = c; changed++; if (p.price && c >= p.price) loss++;
+        }
+        if (Object.keys(pt).length) patch[code] = pt;
+      }
+      if (Object.keys(patch).length) await DB.patchMany(patch);
+      await DB.saveMeta('info', { costs: [...(info?.costs || []), COST_UPDATE_ID] });
+      const miss = Object.keys(COSTS).length - found;
+      if (changed || miss) toast(`บันทึกต้นทุนจาก${COST_LABEL} แล้ว ${changed} รายการ` + (loss ? ` (มี ${loss} ตัวที่ทุนสูงกว่าราคาขาย ดูที่ รายงาน › ควรเช็คราคา)` : '') + (miss ? ` · ไม่พบในร้าน ${miss} บาร์โค้ด` : ''), 9000);
+    } catch (e) { console.warn('cost update', f, e); }
+  }
 }
 // one-time list additions shipped with the app (e.g. a restock order written down for the owner)
 async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=73');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=74');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1513,7 +1523,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '73';
+const APP_VERSION = '74';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
