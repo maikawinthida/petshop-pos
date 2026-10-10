@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=74';
-import { OWNER_EMAIL } from './config.js?v=74';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=74';
+import * as DB from './db.js?v=75';
+import { OWNER_EMAIL } from './config.js?v=75';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=75';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1353,8 +1353,15 @@ async function applyCostUpdate() {
   if (!S.isOwner) return;
   for (const f of COST_FILES) {
     try {
-      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=74`);
-      const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) continue;
+      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=75`);
+      const info = await DB.getMeta('info'), done = info?.costs || [];
+      // the invoice's shop also becomes each product's "รับมาจากร้าน" (same as receiving goods); separate flag so it also runs where the costs already went in
+      if (SUPPLIER && !done.includes(COST_UPDATE_ID + ':sup')) {
+        const sp = {}; for (const code of Object.keys(COSTS)) { const p = P.get(code); if (p && p.supplier !== SUPPLIER) { p.supplier = SUPPLIER; sp[code] = { s: SUPPLIER }; } }
+        if (Object.keys(sp).length) await DB.patchMany(sp);
+        done.push(COST_UPDATE_ID + ':sup'); await DB.saveMeta('info', { costs: [...done] });
+      }
+      if (done.includes(COST_UPDATE_ID)) continue;
       if (SUPPLIER && !supList().includes(SUPPLIER)) { S.settings.suppliers = [...supList(), SUPPLIER]; store.set('settingsCache', S.settings); await DB.saveMeta('settings', { suppliers: S.settings.suppliers }); }
       const patch = {}; let changed = 0, loss = 0, found = 0;
       for (const [code, c] of Object.entries(COSTS)) {
@@ -1368,7 +1375,7 @@ async function applyCostUpdate() {
         if (Object.keys(pt).length) patch[code] = pt;
       }
       if (Object.keys(patch).length) await DB.patchMany(patch);
-      await DB.saveMeta('info', { costs: [...(info?.costs || []), COST_UPDATE_ID] });
+      await DB.saveMeta('info', { costs: [...done, COST_UPDATE_ID] });
       const miss = Object.keys(COSTS).length - found;
       if (changed || miss) toast(`บันทึกต้นทุนจาก${COST_LABEL} แล้ว ${changed} รายการ` + (loss ? ` (มี ${loss} ตัวที่ทุนสูงกว่าราคาขาย ดูที่ รายงาน › ควรเช็คราคา)` : '') + (miss ? ` · ไม่พบในร้าน ${miss} บาร์โค้ด` : ''), 9000);
     } catch (e) { console.warn('cost update', f, e); }
@@ -1379,7 +1386,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=74');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=75');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1523,7 +1530,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '74';
+const APP_VERSION = '75';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
