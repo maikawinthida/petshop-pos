@@ -9,7 +9,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preload" href="fonts/GoogleSans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/app.css?v=62">
+<link rel="stylesheet" href="css/app.css?v=63">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -182,7 +182,8 @@
     <div id="bRes" class="bres"></div>
   </section>
   <section class="card buylist">
-    <div class="bhead"><h2>รายการที่ต้องซื้อ <span class="bcount" id="bCount"></span></h2><div class="fchips" id="bSup"></div></div>
+    <div class="bhead"><h2>รายการที่ต้องซื้อ <span class="bcount" id="bCount"></span></h2><div class="bexp" id="bExp" hidden><button class="ghost" id="bPdf">ส่งออก PDF</button><button class="ghost" id="bXls">ส่งออก Excel</button></div></div>
+    <div class="fchips" id="bSup"></div>
     <div id="bList"></div>
     <div class="empty bempty" id="bEmpty"><div class="bico">🛒</div>ยังไม่มีรายการ<br><span class="hint">ค้นหาหรือสแกนสินค้าด้านบนเพื่อเพิ่ม</span></div>
     <details class="recentbox" id="bDoneBox" hidden><summary>ซื้อแล้ว <span class="hint" id="bDoneCount"></span></summary><div id="bDone"></div>
@@ -270,6 +271,6 @@
     var b=document.createElement('button'); b.className='primary'; b.textContent='โหลดใหม่'; b.onclick=function(){ location.reload(); };
     m.parentNode.appendChild(b); }, 8000);
 </script>
-<script type="module" src="js/app.js?v=62"></script>
+<script type="module" src="js/app.js?v=63"></script>
 </body>
 </html>

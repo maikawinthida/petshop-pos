@@ -368,3 +368,12 @@ tr.cancel td:last-child{text-decoration:none}
 /* phone: grid children may shrink, so wide chip rows scroll instead of widening the page */
 #viewProd,#viewBuy{grid-template-columns:minmax(0,1fr)}#viewProd>*,#viewBuy>*,.plist>*,.pfilters,.pfilters .frow,.pfilters .fchips{min-width:0}
 .bgrp h3{display:flex;align-items:center;justify-content:space-between;gap:8px}.bdelall{font-size:13px;font-weight:600;color:#c62828;background:#fff;border:1px solid #f3b4ae;border-radius:999px;padding:3px 10px}
+/* list export */
+.bexp{display:flex;gap:6px}.bexp .ghost{padding:6px 12px;font-size:14px}
+.pdfhost{position:fixed;left:-10000px;top:0}
+.pdfpage{width:794px;height:1123px;box-sizing:border-box;padding:40px 38px;background:#fff;color:#1d2a22;font-family:'Google Sans',Sarabun,Tahoma,sans-serif;font-size:13px;position:relative;overflow:hidden}
+.pdfpage h1{font-size:21px;margin:0;color:#1f6b3a}.pdfpage .psub{color:#666;font-size:12px;margin:2px 0 12px}
+.pdfpage table{width:100%;border-collapse:collapse}.pdfpage th{background:#1f6b3a;color:#fff;padding:6px 5px;font-size:12px;text-align:left}
+.pdfpage td{border-bottom:1px solid #ddd;padding:5px;vertical-align:top}.pdfpage .pg td{background:#dcebdf;font-weight:700;border:0}
+.pdfpage .c{text-align:center;white-space:nowrap}.pdfpage .bc{font-size:11px;color:#555;white-space:nowrap}.pdfpage .pn{font-size:11px;color:#8a5a00}
+.pdfpage .ck{width:18px;border:1px solid #999}.pdfpage .pfoot{position:absolute;bottom:16px;left:0;right:0;text-align:center;font-size:11px;color:#888}

@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=62';
-import { OWNER_EMAIL } from './config.js?v=62';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=62';
+import * as DB from './db.js?v=63';
+import { OWNER_EMAIL } from './config.js?v=63';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=63';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -465,11 +465,62 @@ function buyDraw() {
     if (tl !== lastT) { const h = document.createElement('div'); h.className = 'btype'; h.textContent = tl; grp.appendChild(h); lastT = tl; }
     grp.appendChild(buyRow(it, x));
   }
-  $('bEmpty').hidden = shown.length > 0;
+  $('bEmpty').hidden = shown.length > 0; $('bExp').hidden = !shown.length;
   $('bCount').textContent = open.length ? `${shown.length}${BUY.sup ? '/' + open.length : ''}` : ''; $('bCount').hidden = !open.length;
   $('bDoneBox').hidden = !done.length; $('bDoneCount').textContent = done.length + ' รายการ';
   const db = $('bDone'); db.innerHTML = ''; done.sort(([a], [b]) => a.name.localeCompare(b.name, 'th')).forEach(([it, x]) => db.appendChild(buyRow(it, x)));
 }
+/* export the list (what's on screen: open items, current shop filter) for ordering — no prices */
+function loadLib(src, test) { if (test()) return Promise.resolve(); return new Promise((ok, no) => { const e = document.createElement('script'); e.src = src; e.onload = ok; e.onerror = no; document.head.appendChild(e); }); }
+function buyExportRows() {
+  const tOrder = t => { const i = TYPES.findIndex(([v]) => v === t); return i < 0 ? 99 : i; };
+  return BUY.items.filter(i => !i.done).map(it => [it, buyInfo(it)]).filter(([, x]) => !BUY.sup || x.sup === BUY.sup)
+    .sort(([, a], [, b]) => (a.brand === 'ไม่มียี่ห้อ') - (b.brand === 'ไม่มียี่ห้อ') || a.brand.localeCompare(b.brand, 'th') || tOrder(a.type) - tOrder(b.type) || a.name.localeCompare(b.name, 'th'))
+    .map(([it, x]) => ({ brand: x.brand, type: typeLabel(x.type), code: it.code || '', name: x.name, qty: it.qty || '', note: it.note || '' }));
+}
+const expName = ext => `ของหมด${BUY.sup ? '_' + BUY.sup : ''}_${today()}.${ext}`;
+$('bXls').onclick = async () => {
+  const rows = buyExportRows(); if (!rows.length) return toast('ไม่มีรายการ');
+  try { await loadLib('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', () => window.XLSX); } catch (e) { return toast('โหลดตัวสร้าง Excel ไม่ได้ ต้องต่อเน็ต'); }
+  const aoa = [[`รายการสั่งของ — ${S.settings.shop}`], [`วันที่ ${today()}${BUY.sup ? ' · ร้าน ' + BUY.sup : ''} · ${rows.length} รายการ`], [], ['#', 'บาร์โค้ด', 'รายการ', 'จำนวน', 'หมายเหตุ']];
+  let last = null, n = 0;
+  for (const r of rows) { const g = r.brand + ' › ' + r.type; if (g !== last) { aoa.push([g]); last = g; } aoa.push([++n, r.code, r.name, r.qty, r.note]); }
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 5 }, { wch: 16 }, { wch: 50 }, { wch: 14 }, { wch: 36 }];
+  for (let i = 4; i < aoa.length; i++) { const c = ws['B' + (i + 1)]; if (c) { c.t = 's'; c.z = '@'; } }
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ของหมด'); XLSX.writeFile(wb, expName('xlsx'));
+};
+$('bPdf').onclick = async () => {
+  const rows = buyExportRows(); if (!rows.length) return toast('ไม่มีรายการ');
+  toast('กำลังสร้าง PDF…', 4000);
+  try {
+    await loadLib('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => window.html2canvas);
+    await loadLib('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => window.jspdf);
+  } catch (e) { return toast('โหลดตัวสร้าง PDF ไม่ได้ ต้องต่อเน็ต'); }
+  // lay rows out on A4-sized pages (794×1123 px), never splitting a row
+  const host = document.createElement('div'); host.className = 'pdfhost'; document.body.appendChild(host);
+  const head = `<h1>รายการสั่งของ — ${esc(S.settings.shop)}</h1><div class="psub">วันที่ ${today()}${BUY.sup ? ' · ร้าน ' + esc(BUY.sup) : ''} · ${rows.length} รายการ · ช่องขวาสุดไว้ติ๊กตอนรับของ</div>`;
+  const th = '<tr><th>#</th><th>บาร์โค้ด</th><th>รายการ</th><th>จำนวน</th><th>✓</th></tr>';
+  const pages = []; let page, tbody, last = null, n = 0;
+  const newPage = first => { page = document.createElement('div'); page.className = 'pdfpage'; page.innerHTML = (first ? head : '') + `<table><thead>${th}</thead><tbody></tbody></table>`; host.appendChild(page); tbody = page.querySelector('tbody'); pages.push(page); };
+  const add = html => { tbody.insertAdjacentHTML('beforeend', html); const tb = page.querySelector('table'); if (tb.offsetTop + tb.offsetHeight > 1123 - 60 && tbody.rows.length > 1) { const tr = tbody.lastElementChild; tr.remove(); newPage(false); tbody.appendChild(tr); } };
+  newPage(true);
+  for (const r of rows) {
+    const g = r.brand + ' › ' + r.type;
+    if (g !== last) { add(`<tr class="pg"><td colspan="5">${esc(g)}</td></tr>`); last = g; }
+    add(`<tr><td class="c">${++n}</td><td class="bc">${esc(r.code)}</td><td>${esc(r.name)}${r.note ? `<div class="pn">${esc(r.note)}</div>` : ''}</td><td class="c"><b>${esc(r.qty)}</b></td><td class="ck"></td></tr>`);
+  }
+  // a group title left alone at the bottom of a page moves to the next page
+  for (let i = 0; i < pages.length - 1; i++) { const tb = pages[i].querySelector('tbody'), l = tb.lastElementChild; if (l?.classList.contains('pg')) pages[i + 1].querySelector('tbody').prepend(l); }
+  try {
+    const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+    for (let i = 0; i < pages.length; i++) {
+      pages[i].insertAdjacentHTML('beforeend', `<div class="pfoot">${i + 1}/${pages.length}</div>`);
+      const cv = await html2canvas(pages[i], { scale: 2, backgroundColor: '#ffffff' });
+      if (i) pdf.addPage(); pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    }
+    pdf.save(expName('pdf'));
+  } catch (e) { console.error(e); toast('สร้าง PDF ไม่สำเร็จ'); } finally { host.remove(); }
+};
 $('bClear').onclick = () => { const ids = BUY.items.filter(i => i.done).map(i => i.id); if (!ids.length) return;
   confirmBox(`ล้างรายการที่ซื้อแล้ว ${ids.length} รายการ?`, 'ล้าง', () => { BUY.items = BUY.items.filter(i => !i.done); DB.delBuy(ids).catch(fail); buyDraw(); }); };
 
@@ -1285,7 +1336,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=62');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=63');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1303,7 +1354,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=62');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=63');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1447,7 +1498,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '62';
+const APP_VERSION = '63';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
