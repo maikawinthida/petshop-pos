@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=72';
-import { OWNER_EMAIL } from './config.js?v=72';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=72';
+import * as DB from './db.js?v=73';
+import { OWNER_EMAIL } from './config.js?v=73';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=73';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1351,7 +1351,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=72');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=73');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1369,7 +1369,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=72');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=73');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1513,7 +1513,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '72';
+const APP_VERSION = '73';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
