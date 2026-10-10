@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>พิมพ์สติกเกอร์</title>
+<!-- Stand-alone label page: everything it needs is in the address (#...), so it opens in any browser
+     (the till's Chrome prints silently to the receipt printer, so labels open here in Edge with a normal print dialog) -->
+<style>
+  @font-face{font-family:"Google Sans";src:url(fonts/GoogleSans.woff2) format("woff2");font-weight:400 700}
+  html,body{margin:0;padding:0;background:#e9efe9;color:#000;font-family:"Google Sans",Tahoma,sans-serif}
+  .bar{position:sticky;top:0;background:#1f6b3a;color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:15px}
+  .bar button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:8px 16px;background:#fff;color:#1f6b3a;cursor:pointer}
+  .bar .hint{opacity:.9;font-size:13px}
+  .sheet{display:flex;flex-wrap:wrap;gap:8px;padding:14px;justify-content:center}
+  .lbl{background:#fff;box-sizing:border-box;padding:1.2mm 1.5mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;box-shadow:0 1px 4px rgb(0 0 0 / .25)}
+  .ls{text-align:center;font-weight:600}
+  .ln{font-weight:600;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ln.one{-webkit-line-clamp:1}
+  .lb{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.3mm 0}
+  .lb svg{display:block;flex:none}
+  .lc{letter-spacing:.5px;line-height:1.1}
+  .lp{font-weight:700;text-align:right;line-height:1}
+  .err{padding:30px;text-align:center}
+  @media print{
+    html,body{background:#fff}
+    .bar{display:none}
+    .sheet{display:block;padding:0}
+    .lbl{box-shadow:none;margin:0}
+    .lbl:not(:last-child){page-break-after:always;break-after:page}
+  }
+</style>
+</head>
+<body>
+<div class="bar"><button id="go">พิมพ์ (Ctrl+P)</button><span class="hint" id="info"></span><span class="hint">เลือกเครื่อง Xprinter XP-420B · ระยะขอบ: ไม่มี · ขนาด 100%</span></div>
+<div class="sheet" id="sheet"></div>
+<script src="lib/JsBarcode.all.min.js"></script>
+<script>
+(function () {
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let d;
+  try { d = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch (e) { d = null; }
+  if (!d || !d.c) { document.getElementById('sheet').innerHTML = '<div class="err">ไม่มีข้อมูลสติกเกอร์ เปิดหน้านี้จากปุ่มพิมพ์บาร์โค้ดในแอป</div>'; return; }
+  const [w, h] = String(d.s || '32x25').split('x').map(Number), n = Math.max(1, Math.min(200, +d.n || 1));
+  const st = document.createElement('style'); st.textContent = `@page{size:${w}mm ${h}mm;margin:0}.lbl{width:${w}mm;height:${h}mm}`
+    + `.ls{font-size:${Math.max(6, h / 4.5)}px}.ln{font-size:${Math.max(7, h / 3.3)}px}.lc{font-size:${Math.max(6, h / 3.6)}px}.lp{font-size:${Math.max(9, h / 2.2)}px}`;
+  document.head.appendChild(st);
+  const eanCheck = s => { let t = 0; for (let i = 0; i < 12; i++) t += +s[i] * (i % 2 ? 3 : 1); return (10 - t % 10) % 10; };
+  // bars sized in whole printer dots (203 dpi) so scanners read them
+  function barcode(code, availMm, hMm) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const ean = /^\d{13}$/.test(code) && +code[12] === eanCheck(code);
+    try { JsBarcode(svg, code, { format: ean ? 'EAN13' : 'CODE128', displayValue: false, margin: 0, height: 10, width: 1, flat: true }); }
+    catch (e) { JsBarcode(svg, code, { format: 'CODE128', displayValue: false, margin: 0, height: 10, width: 1 }); }
+    const modules = parseFloat(svg.getAttribute('width')) || 95, dot = 25.4 / 203;
+    const k = Math.max(1, Math.min(3, Math.floor(availMm / (modules * dot))));
+    svg.setAttribute('viewBox', `0 0 ${modules} 10`); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('shape-rendering', 'crispEdges');
+    svg.style.width = (modules * k * dot).toFixed(3) + 'mm'; svg.style.height = hMm + 'mm';
+    svg.removeAttribute('width'); svg.removeAttribute('height');
+    return svg.outerHTML;
+  }
+  const bh = Math.max(5, h * 0.36 - (d.shop ? 1.5 : 0));
+  const one = `<div class="lbl">${d.shop ? `<div class="ls">${esc(d.shop)}</div>` : ''}<div class="ln${h <= 20 ? ' one' : ''}">${esc(d.name || '')}</div>`
+    + `<div class="lb">${barcode(d.c, w - 3, bh)}<div class="lc">${esc(d.c)}</div></div>`
+    + `${d.p != null && d.p !== '' ? `<div class="lp">${esc(Number(d.p).toLocaleString('th-TH', { maximumFractionDigits: 2 }))} บาท</div>` : ''}</div>`;
+  document.getElementById('sheet').innerHTML = one.repeat(n);
+  document.getElementById('info').textContent = `${d.name || d.c} · ${n} ดวง · ${w}×${h} มม.`;
+  document.title = `สติกเกอร์ ${d.c}`;
+  const go = () => window.print();
+  document.getElementById('go').onclick = go;
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(go, 300));
+})();
+</script>
+</body>
+</html>

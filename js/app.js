@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=67';
-import { OWNER_EMAIL } from './config.js?v=67';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=67';
+import * as DB from './db.js?v=68';
+import { OWNER_EMAIL } from './config.js?v=68';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=68';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1114,8 +1114,8 @@ async function openLabel(p) {
       <label class="check"><input type="checkbox" id="lbShop" ${L.shop ? 'checked' : ''}> พิมพ์ชื่อร้าน</label>
     </div>
     <div class="lblprev" id="lbPrev"></div>
-    <p class="hint" style="margin:8px 0 0">กด <b>สร้างไฟล์สติกเกอร์</b> แล้วเปิดไฟล์ที่ดาวน์โหลด กด Ctrl+P เลือกเครื่อง <b>Xprinter XP-420B</b> (ใบเสร็จยังออกอัตโนมัติเหมือนเดิม)</p>
-    <div class="mrow"><button class="ghost" id="lbNo">ยกเลิก</button><button class="primary" id="lbGo">สร้างไฟล์สติกเกอร์</button></div>`);
+    <p class="hint" style="margin:8px 0 0">กดพิมพ์แล้วจะเปิดหน้าสติกเกอร์ขึ้นมาพร้อมหน้าต่างพิมพ์ เลือกเครื่อง <b>Xprinter XP-420B</b> แล้วกดพิมพ์ (ใบเสร็จยังออกอัตโนมัติเหมือนเดิม)</p>
+    <div class="mrow"><button class="ghost" id="lbNo">ยกเลิก</button><button class="primary" id="lbGo">พิมพ์</button></div>`);
   const get = () => ({ n: Math.max(1, Math.min(200, parseInt(s.querySelector('#lbN').value) || 1)), size: s.querySelector('#lbSize').value, price: s.querySelector('#lbPrice').checked, shop: s.querySelector('#lbShop').checked });
   const prev = () => { const o = get(); const [w, h] = o.size.split('x').map(Number); s.querySelector('#lbPrev').innerHTML = `<div class="lbl" style="width:${w}mm;height:${h}mm;zoom:2">${labelInner(p, o, w, h)}</div>`; };
   s.querySelectorAll('#lbSize,#lbPrice,#lbShop').forEach(x => x.onchange = prev); prev();
@@ -1127,25 +1127,15 @@ function labelInner(p, o, w, h) {
   const bh = Math.max(5, h * 0.36 - (o.shop ? 1.5 : 0));
   return `${o.shop ? `<div class="ls">${esc(S.settings.shop)}</div>` : ''}<div class="ln${small ? ' one' : ''}">${esc(p.name)}</div><div class="lb">${barcodeSVG(p.code, w - 3, bh)}<div class="lc">${esc(p.code)}</div></div>${o.price ? `<div class="lp">${fmt0(p.price)} บาท</div>` : ''}`;
 }
-async function printLabels(p, o) {
-  const [w, h] = o.size.split('x').map(Number);
-  toast('กำลังสร้างไฟล์สติกเกอร์…', 4000);
-  try {
-    await loadLib('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => window.html2canvas);
-    await loadLib('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => window.jspdf);
-  } catch (e) { return toast('โหลดตัวสร้างไฟล์ไม่ได้ ต้องต่อเน็ต'); }
-  const host = document.createElement('div'); host.className = 'lblhost';
-  host.innerHTML = `<div class="lbl lblprint" style="width:${w}mm;height:${h}mm">${labelInner(p, o, w, h)}</div>`;
-  document.body.appendChild(host);
-  try {
-    await document.fonts?.ready;
-    const cv = await html2canvas(host.firstElementChild, { scale: 16 / 3.7795, backgroundColor: '#ffffff' });   // 16 px per mm = 2× the printer's 203 dpi
-    const pdf = new jspdf.jsPDF({ unit: 'mm', format: [w, h], orientation: w > h ? 'landscape' : 'portrait' });
-    const img = cv.toDataURL('image/png');
-    for (let i = 0; i < o.n; i++) { if (i) pdf.addPage([w, h], w > h ? 'landscape' : 'portrait'); pdf.addImage(img, 'PNG', 0, 0, w, h, 'lbl', 'FAST'); }
-    pdf.save(`สติกเกอร์_${p.code}_${o.n}ดวง.pdf`);
-    toast('ได้ไฟล์แล้ว เปิดไฟล์ แล้วกด Ctrl+P เลือก XP-420B', 6000);
-  } catch (e) { console.error(e); toast('สร้างไฟล์สติกเกอร์ไม่สำเร็จ'); } finally { host.remove(); }
+// The till's Chrome prints silently to the receipt printer, so labels open as their own page in Edge,
+// which shows the normal print dialog (pick Xprinter XP-420B once; Edge remembers it).
+function printLabels(p, o) {
+  const data = { c: p.code, name: p.name, n: o.n, s: o.size, p: o.price ? p.price : '', shop: o.shop ? S.settings.shop : '' };
+  const url = new URL('label.html', location.href).href + '#' + encodeURIComponent(JSON.stringify(data));
+  const win = /Windows/.test(navigator.userAgent);
+  const a = document.createElement('a'); a.href = win ? 'microsoft-edge:' + url : url; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+  if (win) toast('เปิดหน้าพิมพ์สติกเกอร์ใน Edge แล้ว เลือกเครื่อง XP-420B แล้วกดพิมพ์', 6000);
 }
 
 /* ---------- keys & clock ---------- */
@@ -1361,7 +1351,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=67');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=68');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1379,7 +1369,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=67');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=68');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1523,7 +1513,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '67';
+const APP_VERSION = '68';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
