@@ -1,6 +1,6 @@
 // Offline shell: the app opens even without internet. Firestore keeps its own offline data.
-const VERSION = 'pos-v71';
-const SHELL = ['./', 'index.html', 'css/app.css?v=71', 'js/app.js?v=71', 'js/db.js?v=71', 'js/config.js?v=71', 'js/brands.js?v=71', 'js/costs-pet8.js?v=71', 'js/seeds.js?v=71', 'fonts/GoogleSans.woff2', 'label.html', 'lib/JsBarcode.all.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
+const VERSION = 'pos-v72';
+const SHELL = ['./', 'index.html', 'css/app.css?v=72', 'js/app.js?v=72', 'js/db.js?v=72', 'js/config.js?v=72', 'js/brands.js?v=72', 'js/costs-pet8.js?v=72', 'js/seeds.js?v=72', 'fonts/GoogleSans.woff2', 'label.html', 'lib/JsBarcode.all.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
