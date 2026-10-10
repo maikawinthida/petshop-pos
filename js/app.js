@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=65';
-import { OWNER_EMAIL } from './config.js?v=65';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=65';
+import * as DB from './db.js?v=66';
+import { OWNER_EMAIL } from './config.js?v=66';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=66';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1114,8 +1114,12 @@ async function openLabel(p) {
       <label class="check"><input type="checkbox" id="lbShop" ${L.shop ? 'checked' : ''}> พิมพ์ชื่อร้าน</label>
     </div>
     <div class="lblprev" id="lbPrev"></div>
-    <p class="hint">ถ้าสติกเกอร์ออกเครื่องใบเสร็จ ในหน้าต่างพิมพ์ให้เลือก Xprinter XP-420B</p>
+    <label class="check lbldev"><input type="checkbox" id="lbDev" ${store.get('labelDevice', false) ? 'checked' : ''}> หน้าต่างนี้เปิดจากไอคอน "พิมพ์สติกเกอร์" (ต่อเครื่อง XP-420B)</label>
+    <p class="notice" id="lbWarn" hidden style="margin:0">ห้ามพิมพ์จากหน้าต่างขายของ เพราะจะไปออกเครื่องใบเสร็จ ให้เปิดไอคอน <b>พิมพ์สติกเกอร์</b> บนเดสก์ท็อปก่อน แล้วติ๊กช่องด้านบนในหน้าต่างนั้น</p>
     <div class="mrow"><button class="ghost" id="lbNo">ยกเลิก</button><button class="primary" id="lbGo">พิมพ์</button></div>`);
+  // labels only print from the separate "พิมพ์สติกเกอร์" window, never from the till window (it prints straight to the receipt printer)
+  const dev = () => { const on = s.querySelector('#lbDev').checked; store.set('labelDevice', on); s.querySelector('#lbGo').disabled = !on; s.querySelector('#lbWarn').hidden = on; };
+  s.querySelector('#lbDev').onchange = dev; dev();
   const get = () => ({ n: Math.max(1, Math.min(200, parseInt(s.querySelector('#lbN').value) || 1)), size: s.querySelector('#lbSize').value, price: s.querySelector('#lbPrice').checked, shop: s.querySelector('#lbShop').checked });
   const prev = () => { const o = get(); const [w, h] = o.size.split('x').map(Number); s.querySelector('#lbPrev').innerHTML = `<div class="lbl" style="width:${w}mm;height:${h}mm;zoom:2">${labelInner(p, o, w, h)}</div>`; };
   s.querySelectorAll('#lbSize,#lbPrice,#lbShop').forEach(x => x.onchange = prev); prev();
@@ -1130,14 +1134,15 @@ function labelInner(p, o, w, h) {
 function printLabels(p, o) {
   const [w, h] = o.size.split('x').map(Number);
   const fontUrl = new URL('fonts/GoogleSans.woff2', location.href).href;
-  const one = `<div class="lbl">${labelInner(p, o, w, h)}</div>`;
+  const one = `<div class="lbl">${labelInner(p, o, w, h)}</div>`;   // last label must not add an empty page
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     @font-face{font-family:"Google Sans";src:url(${fontUrl}) format("woff2");font-weight:400 700}
     @page{size:${w}mm ${h}mm;margin:0}
     html,body{margin:0;padding:0;background:#fff;color:#000}
-    .lbl{width:${w}mm;height:${h}mm;box-sizing:border-box;padding:1.2mm 1.5mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;page-break-after:always;break-after:page;font-family:"Google Sans",sans-serif;color:#000}
+    .lbl{width:${w}mm;height:${h}mm;box-sizing:border-box;padding:1.2mm 1.5mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;font-family:"Google Sans",sans-serif;color:#000}
     .ls{font-size:${Math.max(6, h / 4.5)}px;text-align:center;font-weight:600}
     .ln{font-size:${Math.max(7, h / 3.3)}px;line-height:1.15;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .lbl:not(:last-child){page-break-after:always;break-after:page}
     .ln.one{-webkit-line-clamp:1}
     .lb{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.3mm 0}
     .lb svg{display:block;flex:none}
@@ -1362,7 +1367,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=65');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=66');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1380,7 +1385,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=65');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=66');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1524,7 +1529,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '65';
+const APP_VERSION = '66';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

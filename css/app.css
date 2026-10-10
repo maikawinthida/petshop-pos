@@ -377,3 +377,4 @@ tr.cancel td:last-child{text-decoration:none}
 .pdfpage td{border-bottom:1px solid #ddd;padding:5px;vertical-align:top}.pdfpage .pg td{background:#dcebdf;font-weight:700;border:0}
 .pdfpage .c{text-align:center;white-space:nowrap}.pdfpage .bc{font-size:11px;color:#555;white-space:nowrap}.pdfpage .pn{font-size:11px;color:#8a5a00}
 .pdfpage .ck{width:18px;border:1px solid #999}.pdfpage .pfoot{position:absolute;bottom:16px;left:0;right:0;text-align:center;font-size:11px;color:#888}
+.lbldev{margin-top:10px;font-weight:600}
