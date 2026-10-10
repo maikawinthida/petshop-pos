@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=63';
-import { OWNER_EMAIL } from './config.js?v=63';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=63';
+import * as DB from './db.js?v=64';
+import { OWNER_EMAIL } from './config.js?v=64';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=64';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -481,13 +481,32 @@ function buyExportRows() {
 const expName = ext => `ของหมด${BUY.sup ? '_' + BUY.sup : ''}_${today()}.${ext}`;
 $('bXls').onclick = async () => {
   const rows = buyExportRows(); if (!rows.length) return toast('ไม่มีรายการ');
-  try { await loadLib('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', () => window.XLSX); } catch (e) { return toast('โหลดตัวสร้าง Excel ไม่ได้ ต้องต่อเน็ต'); }
-  const aoa = [[`รายการสั่งของ — ${S.settings.shop}`], [`วันที่ ${today()}${BUY.sup ? ' · ร้าน ' + BUY.sup : ''} · ${rows.length} รายการ`], [], ['#', 'บาร์โค้ด', 'รายการ', 'จำนวน', 'หมายเหตุ']];
-  let last = null, n = 0;
-  for (const r of rows) { const g = r.brand + ' › ' + r.type; if (g !== last) { aoa.push([g]); last = g; } aoa.push([++n, r.code, r.name, r.qty, r.note]); }
-  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 5 }, { wch: 16 }, { wch: 50 }, { wch: 14 }, { wch: 36 }];
-  for (let i = 4; i < aoa.length; i++) { const c = ws['B' + (i + 1)]; if (c) { c.t = 's'; c.z = '@'; } }
-  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ของหมด'); XLSX.writeFile(wb, expName('xlsx'));
+  try { await loadLib('lib/exceljs.min.js', () => window.ExcelJS); } catch (e) { return toast('โหลดตัวสร้าง Excel ไม่ได้'); }
+  const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('ของหมด', { views: [{ state: 'frozen', ySplit: 4 }], pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const F = (o = {}) => ({ name: 'Tahoma', size: 11, ...o }), thin = { style: 'thin', color: { argb: 'FFBFBFBF' } }, box = { top: thin, left: thin, bottom: thin, right: thin };
+  ws.columns = [{ width: 7 }, { width: 17 }, { width: 52 }, { width: 9 }, { width: 9 }, { width: 34 }];
+  ws.getCell('A1').value = `รายการสั่งของ — ${S.settings.shop}`; ws.getCell('A1').font = F({ size: 16, bold: true });
+  ws.getCell('A2').value = `วันที่ ${today()}${BUY.sup ? ' · ร้าน ' + BUY.sup : ''} · ${rows.length} รายการ`; ws.getCell('A2').font = F({ size: 10, color: { argb: 'FF666666' } });
+  const hr = ws.getRow(4); hr.values = ['ลำดับ', 'บาร์โค้ด', 'รายการ', 'จำนวน', 'หน่วย', 'หมายเหตุ'];
+  hr.eachCell(c => { c.font = F({ bold: true, color: { argb: 'FFFFFFFF' } }); c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F6B3A' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = box; });
+  ws.pageSetup.printTitlesRow = '4:4';
+  let r = 5, last = null, n = 0;
+  for (const x of rows) {
+    const g = x.brand + ' › ' + x.type;
+    if (g !== last) {
+      ws.mergeCells(r, 1, r, 6); const c = ws.getCell(r, 1); c.value = g; c.font = F({ bold: true });
+      for (let i = 1; i <= 6; i++) { const k = ws.getCell(r, i); k.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCEBDF' } }; k.border = box; }
+      r++; last = g;
+    }
+    const m = String(x.qty).trim().match(/^(\d+(?:\.\d+)?)\s*(.*)$/), qn = m ? +m[1] : x.qty, qu = m ? m[2] : '';
+    const row = ws.getRow(r); row.values = [++n, x.code, x.name, qn, qu, x.note];
+    row.eachCell({ includeEmpty: true }, (c, i) => { c.font = F(i === 4 ? { bold: true } : {}); c.border = box; c.alignment = { vertical: 'middle', horizontal: [1, 4, 5].includes(i) ? 'center' : 'left', wrapText: i === 3 || i === 6 }; });
+    row.getCell(2).numFmt = '@'; r++;
+  }
+  r++; ws.getCell(r, 3).value = `รวม ${n} รายการ`; ws.getCell(r, 3).font = F({ bold: true });
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = expName('xlsx');
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 };
 $('bPdf').onclick = async () => {
   const rows = buyExportRows(); if (!rows.length) return toast('ไม่มีรายการ');
@@ -1336,7 +1355,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=63');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=64');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1354,7 +1373,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=63');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=64');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1498,7 +1517,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '63';
+const APP_VERSION = '64';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
