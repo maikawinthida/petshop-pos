@@ -3,7 +3,7 @@
 // Existing brands keep their position in the stored list; new ones are appended, so product links never shift.
 export const BRAND_RULES_VERSION = 4;
 export const BRAND_RULES = [
-  ['สมาร์ทฮาร์ท', 'SmartHeart', ['sm', 'sh', 'smh', 'shg', 's/h', 'smart heart', 'สมาร์ท'], [/^sm(?![a-z])/, /^sh(?![a-z])/, /^shg/, /^s\/h/, /^smh/, /สมาร์ทฮาร์ท/, /สมาร์ฮาร์ท/, /smartheart/]],
+  ['สมาร์ทฮาร์ท', 'SmartHeart', ['sm', 'sh', 'smh', 'shg', 's/h', 'smart heart', 'สมาร์ท'], [/^sm(?![a-z])/, /^smtoy/, /^sh(?![a-z])/, /^shg/, /^s\/h/, /^smh/, /สมาร์ทฮาร์ท/, /สมาร์ฮาร์ท/, /smartheart/]],
   ['มีโอ', 'Me-O', ['meo', 'me o', 'มีโอ้'], [/me-?o/, /มีโอ/]],
   ['เพดดีกรี', 'Pedigree', ['pd', 'เพดดิกรี'], [/pedigree/, /เพดดีกรี/, /เพดดิกรี/]],
   ['วิสกัส', 'Whiskas', [], [/whiskas/, /วิสกัส/]],

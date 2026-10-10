@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=60';
-import { OWNER_EMAIL } from './config.js?v=60';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=60';
+import * as DB from './db.js?v=61';
+import { OWNER_EMAIL } from './config.js?v=61';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=61';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1273,7 +1273,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=60');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=61');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1291,8 +1291,21 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [] } = await import('./seeds.js?v=60');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=61');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
+    let fixed = 0;
+    for (const fx of FIXES) {
+      if (done.includes(fx.id)) continue;
+      const bi = fx.brand ? BRANDS.findIndex(b => b[0] === fx.brand) : -1;
+      for (const x of fx.items) {
+        const p = P.get(x.code); if (!p) continue;
+        const f = {}; if (x.name) { f.n = x.name; p.name = x.name; } if (bi >= 0) { f.b = bi; p.brand = bi; }
+        if (fx.t) { f.t = fx.t; p.type = fx.t; } if (fx.a) { f.a = fx.a; p.animal = fx.a; }
+        p.key = mkKey(p); DB.patchProduct(x.code, f).catch(() => { }); fixed++;
+      }
+      done.push(fx.id);
+    }
+    if (fixed) { await DB.saveMeta('info', { seeds: done }); toast(`แก้ข้อมูลสินค้าแล้ว ${fixed} รายการ`, 5000); if (!$('viewBuy').hidden) buyDraw(); }
     for (const c of CLEARS) {
       if (done.includes(c.id)) continue;
       const re = c.match ? new RegExp(c.match, 'i') : null;
@@ -1422,7 +1435,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '60';
+const APP_VERSION = '61';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

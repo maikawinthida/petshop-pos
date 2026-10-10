@@ -7,3 +7,8 @@ export const CLEARS = [
   // everything Pet8 still on the list, including items written in by hand
   { id: 'clear-pet8-all-2610', brand: 'เพ็ทเอท', match: 'pet\\s*-?8|เพ็ทเอท' },
 ];
+
+// product corrections (name / brand / type), applied once
+export const FIXES = [
+  { id: 'fix-smtoy-2610', brand: 'สมาร์ทฮาร์ท', t: 'dry', a: 'dog', items: [{"code": "8850477892132", "name": "SmartHeart Toy สเต็กเนื้อ 1.3 กก."}, {"code": "8850477892453", "name": "SmartHeart Toy สเต็กเนื้อ 450 กรัม"}, {"code": "8850477001008", "name": "SmartHeart Toy ไก่+ตับ 20 กก."}, {"code": "8850477892095", "name": "SmartHeart Toy สเต็กเนื้อ 9 กก."}] },
+];
