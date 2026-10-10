@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=64';
-import { OWNER_EMAIL } from './config.js?v=64';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=64';
+import * as DB from './db.js?v=65';
+import { OWNER_EMAIL } from './config.js?v=65';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=65';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1090,12 +1090,17 @@ function loadBarcodeLib() {
   if (window.JsBarcode) return Promise.resolve();
   return new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
 }
-function barcodeSVG(code) {
+// bars sized in whole printer dots (203 dpi ≈ 8 dots/mm) so the scanner reads them; digits drawn as text, not stretched
+function barcodeSVG(code, availMm = 29, hMm = 9) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const ean = /^\d{13}$/.test(code) && +code[12] === eanCheck(code.slice(0, 12));
-  try { JsBarcode(svg, code, { format: ean ? 'EAN13' : 'CODE128', displayValue: true, fontSize: 14, margin: 0, height: 50, width: 2, flat: true }); }
-  catch (e) { JsBarcode(svg, code, { format: 'CODE128', displayValue: true, fontSize: 14, margin: 0, height: 50, width: 2 }); }
-  svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('preserveAspectRatio', 'none');
+  try { JsBarcode(svg, code, { format: ean ? 'EAN13' : 'CODE128', displayValue: false, margin: 0, height: 10, width: 1, flat: true }); }
+  catch (e) { JsBarcode(svg, code, { format: 'CODE128', displayValue: false, margin: 0, height: 10, width: 1 }); }
+  const modules = parseFloat(svg.getAttribute('width')) || 95;
+  const dot = 25.4 / 203, k = Math.max(1, Math.min(3, Math.floor(availMm / (modules * dot))));   // dots per bar module
+  svg.setAttribute('viewBox', `0 0 ${modules} 10`); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('shape-rendering', 'crispEdges');
+  svg.style.width = (modules * k * dot).toFixed(3) + 'mm'; svg.style.height = hMm + 'mm';
+  svg.removeAttribute('width'); svg.removeAttribute('height');
   return svg.outerHTML;
 }
 async function openLabel(p) {
@@ -1112,14 +1117,15 @@ async function openLabel(p) {
     <p class="hint">ถ้าสติกเกอร์ออกเครื่องใบเสร็จ ในหน้าต่างพิมพ์ให้เลือก Xprinter XP-420B</p>
     <div class="mrow"><button class="ghost" id="lbNo">ยกเลิก</button><button class="primary" id="lbGo">พิมพ์</button></div>`);
   const get = () => ({ n: Math.max(1, Math.min(200, parseInt(s.querySelector('#lbN').value) || 1)), size: s.querySelector('#lbSize').value, price: s.querySelector('#lbPrice').checked, shop: s.querySelector('#lbShop').checked });
-  const prev = () => { const o = get(); const [w, h] = o.size.split('x').map(Number); s.querySelector('#lbPrev').innerHTML = `<div class="lbl" style="width:${w * 3.4}px;height:${h * 3.4}px">${labelInner(p, o, w, h)}</div>`; };
+  const prev = () => { const o = get(); const [w, h] = o.size.split('x').map(Number); s.querySelector('#lbPrev').innerHTML = `<div class="lbl" style="width:${w}mm;height:${h}mm;zoom:2">${labelInner(p, o, w, h)}</div>`; };
   s.querySelectorAll('#lbSize,#lbPrice,#lbShop').forEach(x => x.onchange = prev); prev();
   s.querySelector('#lbNo').onclick = closeModal;
   s.querySelector('#lbGo').onclick = () => { const o = get(); store.set('label', { size: o.size, price: o.price, shop: o.shop }); closeModal(); printLabels(p, o); };
 }
 function labelInner(p, o, w, h) {
   const small = h <= 20;
-  return `${o.shop ? `<div class="ls">${esc(S.settings.shop)}</div>` : ''}<div class="ln${small ? ' one' : ''}">${esc(p.name)}</div><div class="lb">${barcodeSVG(p.code)}</div>${o.price ? `<div class="lp">${fmt0(p.price)} บาท</div>` : ''}`;
+  const bh = Math.max(5, h * 0.36 - (o.shop ? 1.5 : 0));
+  return `${o.shop ? `<div class="ls">${esc(S.settings.shop)}</div>` : ''}<div class="ln${small ? ' one' : ''}">${esc(p.name)}</div><div class="lb">${barcodeSVG(p.code, w - 3, bh)}<div class="lc">${esc(p.code)}</div></div>${o.price ? `<div class="lp">${fmt0(p.price)} บาท</div>` : ''}`;
 }
 function printLabels(p, o) {
   const [w, h] = o.size.split('x').map(Number);
@@ -1133,8 +1139,9 @@ function printLabels(p, o) {
     .ls{font-size:${Math.max(6, h / 4.5)}px;text-align:center;font-weight:600}
     .ln{font-size:${Math.max(7, h / 3.3)}px;line-height:1.15;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .ln.one{-webkit-line-clamp:1}
-    .lb{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:.5mm 0}
-    .lb svg{width:100%;height:100%;max-height:${h * 0.5}mm}
+    .lb{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.3mm 0}
+    .lb svg{display:block;flex:none}
+    .lc{font-size:${Math.max(6, h / 3.6)}px;letter-spacing:.5px;line-height:1.1}
     .lp{font-size:${Math.max(9, h / 2.2)}px;font-weight:700;text-align:right;line-height:1}
   </style></head><body>${one.repeat(o.n)}</body></html>`;
   const f = document.createElement('iframe'); f.className = 'printframe'; document.body.appendChild(f);
@@ -1355,7 +1362,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=64');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=65');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1373,7 +1380,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=64');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=65');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1517,7 +1524,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '64';
+const APP_VERSION = '65';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
