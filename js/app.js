@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=61';
-import { OWNER_EMAIL } from './config.js?v=61';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=61';
+import * as DB from './db.js?v=62';
+import { OWNER_EMAIL } from './config.js?v=62';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=62';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -9,6 +9,18 @@ const norm = s => String(s ?? '').toLowerCase().replace(/\s+/g, '');
 function mkKey(o) { const b = BRANDS[o.brand]; const tl = (typeof TYPES !== 'undefined' && TYPES.find(([v]) => v && v === o.type)?.[1]) || '', al = (typeof ANIMALS !== 'undefined' && ANIMALS.find(([v]) => v && v === o.animal)?.[1]) || '';
   return norm(o.name + ' ' + o.code + (b ? ' ' + b[0] + ' ' + b[1] + ' ' + (b[3] || []).join(' ') : '') + ' ' + tl + ' ' + al); }
 /* brands that match what's typed, in Thai, English or a short form ("sm", "สม" → สมาร์ทฮาร์ท) */
+// English ↔ Thai words people mix when searching ("pramy salmon" finds "พรามี่ ... แซลมอน")
+const SYN_PAIRS = [['salmon', 'แซลมอน'], ['tuna', 'ทูน่า'], ['chicken', 'ไก่'], ['beef', 'เนื้อ'], ['lamb', 'แกะ'], ['liver', 'ตับ'], ['fish', 'ปลา'], ['shrimp', 'กุ้ง'],
+  ['seafood', 'ซีฟู้ด'], ['milk', 'นม'], ['goat', 'แพะ'], ['kitten', 'ลูกแมว'], ['puppy', 'ลูกสุนัข'], ['cat', 'แมว'], ['dog', 'สุนัข'], ['dog', 'หมา'], ['adult', 'โต'],
+  ['litter', 'ทราย'], ['sand', 'ทราย'], ['tofu', 'เต้าหู้'], ['carnivore', 'คาร์นิวอร์'], ['pouch', 'เพาซ์'], ['jelly', 'เยลลี่'], ['gravy', 'เกรวี่'], ['snack', 'ขนม'], ['treat', 'ขนม']];
+const SYN = {}; for (const [a, b] of SYN_PAIRS) { (SYN[a] ||= []).push(b); (SYN[b] ||= []).push(a); }
+const hasWord = (key, w) => key.includes(w) || (SYN[w] || []).some(x => key.includes(x));
+function wordMatch(list, words, extra = () => true) {
+  let r = list.filter(p => extra(p) && words.every(w => hasWord(p.key, w)));
+  // nothing found: forgive a typo at the end of long words ("carnivol" finds "carnivore")
+  if (!r.length && words.some(w => w.length >= 5)) { const loose = words.map(w => w.length >= 5 && !SYN[w] ? w.slice(0, Math.max(4, w.length - 2)) : w); r = list.filter(p => extra(p) && loose.every(w => hasWord(p.key, w))); }
+  return r;
+}
 function brandSuggest(q, max = 8) {
   const nq = norm(q); if (!nq) return [];
   const out = [];
@@ -293,7 +305,7 @@ const F = { q: '', brand: '', type: '', animal: '', sort: 'rank', sel: 0, res: [
 function filterF() {
   const words = F.q.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
   if (/^\d{3,}$/.test(fixCode(F.q.trim()))) { const d = fixCode(F.q.trim()); F.res = LIST.filter(p => p.code.endsWith(d)); if (!F.res.length) F.res = LIST.filter(p => p.code.includes(d)); F.sel = 0; return; }
-  const r = LIST.filter(p => (F.brand === '' || p.brand === +F.brand) && (F.type === '' || (F.type === 'big' ? p.big : p.type === F.type)) && (F.animal === '' || p.animal === F.animal) && words.every(w => p.key.includes(w)));
+  const r = wordMatch(LIST, words, p => (F.brand === '' || p.brand === +F.brand) && (F.type === '' || (F.type === 'big' ? p.big : p.type === F.type)) && (F.animal === '' || p.animal === F.animal));
   const cmp = { rank: (a, b) => b.rank - a.rank, name: (a, b) => a.name.localeCompare(b.name, 'th'), price: (a, b) => a.price - b.price, pricedesc: (a, b) => b.price - a.price }[F.sort];
   F.res = r.sort(cmp); F.sel = 0;
 }
@@ -381,7 +393,7 @@ function buySearch() {
   if (!raw) return;
   const d = fixCode(raw); let res;
   if (/^\d{3,}$/.test(d)) res = LIST.filter(p => p.code.endsWith(d));
-  else { const words = raw.toLowerCase().split(/\s+/).filter(Boolean).map(norm); res = LIST.filter(p => words.every(w => p.key.includes(w))).sort((a, b) => b.rank - a.rank); }
+  else { const words = raw.toLowerCase().split(/\s+/).filter(Boolean).map(norm); res = wordMatch(LIST, words).sort((a, b) => b.rank - a.rank); }
   for (const p of res.slice(0, 12)) {
     const inList = BUY.items.find(i => i.code === p.code && !i.done);
     const b = document.createElement('button'); b.className = 'bresrow';
@@ -844,7 +856,7 @@ function pFilter() {
   const base = PL.brand >= 0 ? LIST.filter(p => p.brand === PL.brand) : LIST;
   if (sort === 'recent' && !v) r = S.recent.map(x => P.get(x.code)).filter(p => p && (PL.brand < 0 || p.brand === PL.brand));
   else if (/^\d{3,}$/.test(v)) r = findByDigits(v);
-  else if (v.length) { const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm); r = base.filter(p => words.every(w => p.key.includes(w))); }
+  else if (v.length) { const words = v.toLowerCase().split(/\s+/).filter(Boolean).map(norm); r = wordMatch(base, words); }
   else r = base.slice();
   if (PL.type) r = r.filter(p => PL.type === 'big' ? p.big : p.type === PL.type);
   if (PL.animal) r = r.filter(p => p.animal === PL.animal);
@@ -1273,7 +1285,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=61');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=62');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1291,7 +1303,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=61');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=62');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1435,7 +1447,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '61';
+const APP_VERSION = '62';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
