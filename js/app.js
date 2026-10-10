@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=68';
-import { OWNER_EMAIL } from './config.js?v=68';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=68';
+import * as DB from './db.js?v=69';
+import { OWNER_EMAIL } from './config.js?v=69';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=69';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1105,22 +1105,24 @@ function barcodeSVG(code, availMm = 29, hMm = 9) {
 }
 async function openLabel(p) {
   try { await loadBarcodeLib(); } catch (e) { toast('โหลดตัวสร้างบาร์โค้ดไม่ได้ ต้องต่อเน็ตครั้งแรก'); return; }
-  const L = store.get('label', { size: '32x25', price: true, shop: false });
+  const L = { size: '32x25', price: true, shop: false, cols: 3, dx: 0, ...store.get('label', {}) };
   const s = openModal(`<h2>พิมพ์สติกเกอร์บาร์โค้ด</h2><p style="margin:0 0 8px">${esc(p.name)}</p>
     <div class="lblopts">
       <label>จำนวนดวง<input class="tin num" id="lbN" inputmode="numeric" value="1"></label>
       <label>ขนาดสติกเกอร์<select class="tin" id="lbSize">${LABEL_SIZES.map(([v, l]) => opt(v, l, v === L.size)).join('')}</select></label>
+      <label>แถวละ<select class="tin" id="lbCols">${[1, 2, 3].map(c => opt(String(c), c + ' ดวง', c === +L.cols)).join('')}</select></label>
+      <label>เลื่อนซ้าย/ขวา (มม.)<input class="tin num" id="lbDx" inputmode="decimal" value="${L.dx || 0}" title="ติดลบ = เลื่อนไปทางซ้าย"></label>
       <label class="check"><input type="checkbox" id="lbPrice" ${L.price ? 'checked' : ''}> พิมพ์ราคา</label>
       <label class="check"><input type="checkbox" id="lbShop" ${L.shop ? 'checked' : ''}> พิมพ์ชื่อร้าน</label>
     </div>
     <div class="lblprev" id="lbPrev"></div>
     <p class="hint" style="margin:8px 0 0">กดพิมพ์แล้วจะเปิดหน้าสติกเกอร์ขึ้นมาพร้อมหน้าต่างพิมพ์ เลือกเครื่อง <b>Xprinter XP-420B</b> แล้วกดพิมพ์ (ใบเสร็จยังออกอัตโนมัติเหมือนเดิม)</p>
     <div class="mrow"><button class="ghost" id="lbNo">ยกเลิก</button><button class="primary" id="lbGo">พิมพ์</button></div>`);
-  const get = () => ({ n: Math.max(1, Math.min(200, parseInt(s.querySelector('#lbN').value) || 1)), size: s.querySelector('#lbSize').value, price: s.querySelector('#lbPrice').checked, shop: s.querySelector('#lbShop').checked });
+  const get = () => ({ n: Math.max(1, Math.min(300, parseInt(s.querySelector('#lbN').value) || 1)), size: s.querySelector('#lbSize').value, price: s.querySelector('#lbPrice').checked, shop: s.querySelector('#lbShop').checked, cols: +s.querySelector('#lbCols').value || 1, dx: parseFloat(s.querySelector('#lbDx').value) || 0 });
   const prev = () => { const o = get(); const [w, h] = o.size.split('x').map(Number); s.querySelector('#lbPrev').innerHTML = `<div class="lbl" style="width:${w}mm;height:${h}mm;zoom:2">${labelInner(p, o, w, h)}</div>`; };
   s.querySelectorAll('#lbSize,#lbPrice,#lbShop').forEach(x => x.onchange = prev); prev();
   s.querySelector('#lbNo').onclick = closeModal;
-  s.querySelector('#lbGo').onclick = () => { const o = get(); store.set('label', { size: o.size, price: o.price, shop: o.shop }); closeModal(); printLabels(p, o); };
+  s.querySelector('#lbGo').onclick = () => { const o = get(); store.set('label', { size: o.size, price: o.price, shop: o.shop, cols: o.cols, dx: o.dx }); closeModal(); printLabels(p, o); };
 }
 function labelInner(p, o, w, h) {
   const small = h <= 20;
@@ -1130,7 +1132,7 @@ function labelInner(p, o, w, h) {
 // The till's Chrome prints silently to the receipt printer, so labels open as their own page in Edge,
 // which shows the normal print dialog (pick Xprinter XP-420B once; Edge remembers it).
 function printLabels(p, o) {
-  const data = { c: p.code, name: p.name, n: o.n, s: o.size, p: o.price ? p.price : '', shop: o.shop ? S.settings.shop : '' };
+  const data = { c: p.code, name: p.name, n: o.n, s: o.size, p: o.price ? p.price : '', shop: o.shop ? S.settings.shop : '', cols: o.cols, dx: o.dx };
   const url = new URL('label.html', location.href).href + '#' + encodeURIComponent(JSON.stringify(data));
   const win = /Windows/.test(navigator.userAgent);
   const a = document.createElement('a'); a.href = win ? 'microsoft-edge:' + url : url; a.target = '_blank'; a.rel = 'noopener';
@@ -1351,7 +1353,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=68');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=69');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1369,7 +1371,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=68');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=69');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1513,7 +1515,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '68';
+const APP_VERSION = '69';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

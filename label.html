@@ -13,6 +13,8 @@
   .bar button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:8px 16px;background:#fff;color:#1f6b3a;cursor:pointer}
   .bar .hint{opacity:.9;font-size:13px}
   .sheet{display:flex;flex-wrap:wrap;gap:8px;padding:14px;justify-content:center}
+  .row{position:relative;background:#fff;box-shadow:0 1px 4px rgb(0 0 0 / .25);overflow:hidden}
+  .row .lbl{position:absolute;top:0;box-shadow:none;outline:1px dashed #ccc}
   .lbl{background:#fff;box-sizing:border-box;padding:1.2mm 1.5mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;box-shadow:0 1px 4px rgb(0 0 0 / .25)}
   .ls{text-align:center;font-weight:600}
   .ln{font-weight:600;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -27,7 +29,8 @@
     .bar{display:none}
     .sheet{display:block;padding:0}
     .lbl{box-shadow:none;margin:0}
-    .lbl:not(:last-child){page-break-after:always;break-after:page}
+    .row{box-shadow:none;margin:0}.row .lbl{outline:none}
+    .row:not(:last-child),.sheet>.lbl:not(:last-child){page-break-after:always;break-after:page}
   }
 </style>
 </head>
@@ -41,8 +44,11 @@
   let d;
   try { d = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch (e) { d = null; }
   if (!d || !d.c) { document.getElementById('sheet').innerHTML = '<div class="err">ไม่มีข้อมูลสติกเกอร์ เปิดหน้านี้จากปุ่มพิมพ์บาร์โค้ดในแอป</div>'; return; }
-  const [w, h] = String(d.s || '32x25').split('x').map(Number), n = Math.max(1, Math.min(200, +d.n || 1));
-  const st = document.createElement('style'); st.textContent = `@page{size:${w}mm ${h}mm;margin:0}.lbl{width:${w}mm;height:${h}mm}`
+  const [w, h] = String(d.s || '32x25').split('x').map(Number), n = Math.max(1, Math.min(300, +d.n || 1));
+  // the roll has several labels side by side: one printed page = one row across the roll
+  const cols = Math.max(1, Math.min(4, +d.cols || 1)), gap = d.gap != null ? +d.gap : 2, side = d.side != null ? +d.side : 2, dx = +d.dx || 0;
+  const W = cols > 1 ? cols * w + (cols - 1) * gap + 2 * side : w;
+  const st = document.createElement('style'); st.textContent = `@page{size:${W}mm ${h}mm;margin:0}.lbl{width:${w}mm;height:${h}mm}.row{width:${W}mm;height:${h}mm}`
     + `.ls{font-size:${Math.max(6, h / 4.5)}px}.ln{font-size:${Math.max(7, h / 3.3)}px}.lc{font-size:${Math.max(6, h / 3.6)}px}.lp{font-size:${Math.max(9, h / 2.2)}px}`;
   document.head.appendChild(st);
   const eanCheck = s => { let t = 0; for (let i = 0; i < 12; i++) t += +s[i] * (i % 2 ? 3 : 1); return (10 - t % 10) % 10; };
@@ -63,8 +69,15 @@
   const one = `<div class="lbl">${d.shop ? `<div class="ls">${esc(d.shop)}</div>` : ''}<div class="ln${h <= 20 ? ' one' : ''}">${esc(d.name || '')}</div>`
     + `<div class="lb">${barcode(d.c, w - 3, bh)}<div class="lc">${esc(d.c)}</div></div>`
     + `${d.p != null && d.p !== '' ? `<div class="lp">${esc(Number(d.p).toLocaleString('th-TH', { maximumFractionDigits: 2 }))} บาท</div>` : ''}</div>`;
-  document.getElementById('sheet').innerHTML = one.repeat(n);
-  document.getElementById('info').textContent = `${d.name || d.c} · ${n} ดวง · ${w}×${h} มม.`;
+  let html = '';
+  if (cols === 1) html = one.repeat(n);
+  else for (let r = 0; r < Math.ceil(n / cols); r++) {
+    html += '<div class="row">';
+    for (let c = 0; c < cols && r * cols + c < n; c++) html += one.replace('<div class="lbl">', `<div class="lbl" style="left:${(cols > 1 ? side : 0) + dx + c * (w + gap)}mm">`);
+    html += '</div>';
+  }
+  document.getElementById('sheet').innerHTML = html;
+  document.getElementById('info').textContent = `${d.name || d.c} · ${n} ดวง · ${w}×${h} มม.${cols > 1 ? ` · แถวละ ${cols} (หน้ากระดาษ ${W}×${h} มม.)` : ''}`;
   document.title = `สติกเกอร์ ${d.c}`;
   const go = () => window.print();
   document.getElementById('go').onclick = go;
