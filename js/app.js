@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=59';
-import { OWNER_EMAIL } from './config.js?v=59';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=59';
+import * as DB from './db.js?v=60';
+import { OWNER_EMAIL } from './config.js?v=60';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=60';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -369,7 +369,8 @@ const animalLabel = a => ANIMALS.find(([v]) => v === a && v)?.[1] || '';
 function buyInfo(it) {   // live product data when linked, else what was saved with the item
   const p = it.code ? P.get(it.code) : null;
   const bi = p ? p.brand : -1;
-  const b = bi >= 0 && BRANDS[bi] ? BRANDS[bi] : (it.bt ? BRANDS.find(x => x[0] === it.bt) || [it.bt, ''] : null);
+  const nb = !(bi >= 0) && !it.bt ? brandFromName(p?.name || it.name) : -1;
+  const b = bi >= 0 && BRANDS[bi] ? BRANDS[bi] : (it.bt ? BRANDS.find(x => x[0] === it.bt) || [it.bt, ''] : (nb >= 0 ? BRANDS[nb] : null));
   return { p, name: p?.name || it.name, brand: b ? b[0] + (b[1] ? ' · ' + b[1] : '') : 'ไม่มียี่ห้อ',
     type: p ? (p.type || 'other') : (it.t || 'other'), animal: p ? p.animal : (it.a || ''), sup: p?.supplier || it.s || '' };
 }
@@ -1272,7 +1273,7 @@ function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   try {
-    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=59');
+    const { COSTS, COST_UPDATE_ID, COST_LABEL } = await import('./costs-pet8.js?v=60');
     const info = await DB.getMeta('info'); if ((info?.costs || []).includes(COST_UPDATE_ID)) return;
     const patch = {}; let changed = 0, loss = 0;
     for (const [code, c] of Object.entries(COSTS)) {
@@ -1290,7 +1291,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [] } = await import('./seeds.js?v=59');
+    const { SEEDS, CLEARS = [] } = await import('./seeds.js?v=60');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     for (const c of CLEARS) {
       if (done.includes(c.id)) continue;
@@ -1337,7 +1338,12 @@ async function migrateBrands() {
       return i;
     });
     const patch = {};
-    for (const p of LIST) if (!(p.brand >= 0 && p.brand < BRANDS.length)) { const r = detectBrand(p.name); if (r >= 0) patch[p.code] = { b: map[r] }; }
+    const prevV = info?.brandV || 0, NEW_FROM = { 4: BRAND_RULES.findIndex(r => r[0] === 'อีซี่แคท') };
+    const forceFrom = Object.entries(NEW_FROM).filter(([v]) => +v > prevV && prevV > 0).reduce((m, [, i]) => Math.min(m, i < 0 ? Infinity : i), Infinity);
+    for (const p of LIST) {
+      const r = detectBrand(p.name); if (r < 0) continue;
+      if (!(p.brand >= 0 && p.brand < BRANDS.length) || (r >= forceFrom && p.brand !== map[r])) patch[p.code] = { b: map[r] };
+    }
     await DB.setBrands(list); await DB.patchMany(patch); await DB.saveMeta('info', { brandV: BRAND_RULES_VERSION });
     toast(`จัดยี่ห้อสินค้าเพิ่ม ${Object.keys(patch).length} รายการแล้ว`);
   } catch (e) { console.error('brand update', e); }
@@ -1416,7 +1422,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '59';
+const APP_VERSION = '60';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();

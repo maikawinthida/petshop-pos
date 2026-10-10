@@ -7,7 +7,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAut
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, memoryLocalCache, doc, collection, onSnapshot,
   setDoc, deleteDoc, writeBatch, increment, serverTimestamp, query, where, orderBy, limit, addDoc, getDoc, getDocs, arrayUnion, deleteField }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { firebaseConfig } from './config.js?v=59';
+import { firebaseConfig } from './config.js?v=60';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
