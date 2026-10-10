@@ -46,7 +46,9 @@
   if (!d || !d.c) { document.getElementById('sheet').innerHTML = '<div class="err">ไม่มีข้อมูลสติกเกอร์ เปิดหน้านี้จากปุ่มพิมพ์บาร์โค้ดในแอป</div>'; return; }
   const [w, h] = String(d.s || '32x25').split('x').map(Number), n = Math.max(1, Math.min(300, +d.n || 1));
   // the roll has several labels side by side: one printed page = one row across the roll
-  const cols = Math.max(1, Math.min(4, +d.cols || 1)), gap = d.gap != null ? +d.gap : 2, side = d.side != null ? +d.side : 2, dx = +d.dx || 0;
+  // measured on the shop's 3-across 32×25 roll on the XP-420B (first test print sat ~2.9 / 2.0 / 1.1 mm too far right):
+  // label pitch is 32 + 2.8 mm, and the printer starts ~1.5 mm further right than the page edge
+  const cols = Math.max(1, Math.min(4, +d.cols || 1)), gap = d.gap != null ? +d.gap : 2.8, side = d.side != null ? +d.side : 1, dx = (cols > 1 ? -1.5 : 0) + (+d.dx || 0);
   const W = cols > 1 ? cols * w + (cols - 1) * gap + 2 * side : w;
   const st = document.createElement('style'); st.textContent = `@page{size:${W}mm ${h}mm;margin:0}.lbl{width:${w}mm;height:${h}mm}.row{width:${W}mm;height:${h}mm}`
     + `.ls{font-size:${Math.max(6, h / 4.5)}px}.ln{font-size:${Math.max(7, h / 3.3)}px}.lc{font-size:${Math.max(6, h / 3.6)}px}.lp{font-size:${Math.max(9, h / 2.2)}px}`;
