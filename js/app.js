@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=77';
-import { OWNER_EMAIL } from './config.js?v=77';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=77';
+import * as DB from './db.js?v=78';
+import { OWNER_EMAIL } from './config.js?v=78';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=78';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -985,14 +985,12 @@ function pMode(m) {
 // a barcode from the search box, the camera or a table click goes to whatever the page is doing
 function handleCode(code) {
   const p = P.get(code);
-  if (!p && SC.mode === 'info' && PF.mode !== 'edit' && PF.mode !== 'new') {
-    camStop(); pfClear(false); $('pfCode').value = code; pfCheckCode();
-    toast('ไม่พบบาร์โค้ดนี้ ใส่ข้อมูลเพื่อเพิ่มสินค้าใหม่ได้เลย');
-    $('paneInfo').scrollIntoView({ behavior: 'smooth', block: 'start' }); return;
-  }
-  if (!p) {
-    $('scanMsg').innerHTML = `ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> <button class="ghost" id="scanAdd">เพิ่มเป็นสินค้าใหม่</button>`;
-    $('scanAdd').onclick = () => { camStop(); pMode('info'); pfClear(false); $('pfCode').value = code; pfCheckCode(); $('scanMsg').textContent = ''; };
+  if (!p) {   // unknown barcode: warn only; the add form opens only if someone presses the button
+    camStop();
+    $('scanMsg').innerHTML = `⚠️ ไม่มีสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> ในระบบ <button class="ghost" id="scanAdd">+ เพิ่มเป็นสินค้าใหม่</button>`;
+    $('scanAdd').onclick = () => { pMode('info'); pfClear(false); $('pfCode').value = code; pfCheckCode(); $('scanMsg').textContent = ''; $('paneInfo').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    toast('ไม่มีสินค้านี้ในระบบ ' + code, 3500);
+    if (innerWidth < 900) $('scanMsg').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
   $('scanMsg').textContent = '';
@@ -1361,7 +1359,7 @@ async function applyCostUpdate() {
   if (!S.isOwner) return;
   for (const f of COST_FILES) {
     try {
-      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=77`);
+      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=78`);
       const info = await DB.getMeta('info'), done = info?.costs || [];
       // the invoice's shop also becomes each product's "รับมาจากร้าน" (same as receiving goods); separate flag so it also runs where the costs already went in
       if (SUPPLIER && !done.includes(COST_UPDATE_ID + ':sup')) {
@@ -1394,7 +1392,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=77');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=78');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1538,7 +1536,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '77';
+const APP_VERSION = '78';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
