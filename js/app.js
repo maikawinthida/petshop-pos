@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=76';
-import { OWNER_EMAIL } from './config.js?v=76';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=76';
+import * as DB from './db.js?v=77';
+import { OWNER_EMAIL } from './config.js?v=77';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=77';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -228,9 +228,17 @@ function addItem(p, qty = 1) {
   const cart = T().cart; const ex = cart.find(i => i.code === p.code);
   if (ex) { ex.qty += qty; cart.splice(cart.indexOf(ex), 1); cart.unshift(ex); }
   else cart.unshift({ code: p.code, name: p.name, unit: p.unit, price: p.price, qty });
-  lastAdded = p.code; $('notice').innerHTML = ''; render();
+  lastAdded = p.code; if (!$('notice').querySelector('.nfwarn')) $('notice').innerHTML = ''; render();   // keep a not-found warning up so it isn't missed
 }
-function notFound(code, old) {   // old = existing product whose saved name/price is broken: same box, fixes it
+// unknown barcode at the till: just warn (scanning carries on); the add form only opens if someone presses the button
+function notFound(code, old, form) {   // old = existing product whose saved name/price is broken: same box, fixes it
+  if (!form) {
+    $('notice').innerHTML = `<div class="notice nfwarn">⚠️ ${old ? `สินค้าบาร์โค้ด <b class="num">${esc(code)}</b> ข้อมูลผิด ยังไม่ได้ใส่ในบิล` : `ไม่มีสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> ในระบบ ยังไม่ได้ใส่ในบิล`} · สแกนตัวต่อไปได้เลย
+      <button type="button" class="ghost" id="nfAdd" style="padding:4px 10px;font-size:14px">${old ? 'แก้ข้อมูล' : '+ เพิ่มสินค้านี้'}</button> <button type="button" class="ghost" id="nfX" style="padding:4px 10px;font-size:14px">ปิด</button></div>`;
+    $('nfAdd').onclick = () => notFound(code, old, true);
+    $('nfX').onclick = () => { $('notice').innerHTML = ''; focusQ(); };
+    toast('ไม่มีสินค้านี้ในระบบ ' + code, 3500); focusQ(); return;
+  }
   $('notice').innerHTML = `<div class="notice">${old ? `สินค้าบาร์โค้ด <b class="num">${esc(code)}</b> ข้อมูลผิด ใส่ชื่อกับราคาใหม่` : `ไม่พบสินค้าบาร์โค้ด <b class="num">${esc(code)}</b> เพิ่มเป็นสินค้าใหม่ได้เลย`}
     <form id="addForm"><span class="brandbox" style="flex:1 1 150px"><input id="nBrand" placeholder="ยี่ห้อ เช่น sm, สม" autocomplete="off" style="width:100%"><div class="bsug drop qa" id="nBrandSug" hidden></div></span>
     <input id="nName" placeholder="ชื่อสินค้า เช่น แมวโต ทูน่า 85g" required autocomplete="off" style="flex:2 1 200px">
@@ -1353,7 +1361,7 @@ async function applyCostUpdate() {
   if (!S.isOwner) return;
   for (const f of COST_FILES) {
     try {
-      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=76`);
+      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=77`);
       const info = await DB.getMeta('info'), done = info?.costs || [];
       // the invoice's shop also becomes each product's "รับมาจากร้าน" (same as receiving goods); separate flag so it also runs where the costs already went in
       if (SUPPLIER && !done.includes(COST_UPDATE_ID + ':sup')) {
@@ -1386,7 +1394,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=76');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=77');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1530,7 +1538,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '76';
+const APP_VERSION = '77';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
