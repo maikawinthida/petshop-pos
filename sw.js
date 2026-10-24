@@ -1,6 +1,6 @@
 // Offline shell: the app opens even without internet. Firestore keeps its own offline data.
-const VERSION = 'pos-v79';
-const SHELL = ['./', 'index.html', 'css/app.css?v=79', 'js/app.js?v=79', 'js/db.js?v=79', 'js/config.js?v=79', 'js/brands.js?v=79', 'js/costs-pet8.js?v=79', 'js/costs-petmart.js?v=79', 'js/costs-petmart-1011.js?v=79', 'js/costs-medipet.js?v=79', 'js/seeds.js?v=79', 'fonts/GoogleSans.woff2', 'label.html', 'lib/JsBarcode.all.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
+const VERSION = 'pos-v80';
+const SHELL = ['./', 'index.html', 'css/app.css?v=80', 'js/app.js?v=80', 'js/db.js?v=80', 'js/config.js?v=80', 'js/brands.js?v=80', 'js/costs-pet8.js?v=80', 'js/costs-petmart.js?v=80', 'js/costs-petmart-1011.js?v=80', 'js/costs-medipet.js?v=80', 'js/costs-cherngao.js?v=80', 'js/seeds.js?v=80', 'fonts/GoogleSans.woff2', 'label.html', 'lib/JsBarcode.all.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

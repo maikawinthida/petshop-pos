@@ -1,6 +1,6 @@
-import * as DB from './db.js?v=79';
-import { OWNER_EMAIL } from './config.js?v=79';
-import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=79';
+import * as DB from './db.js?v=80';
+import { OWNER_EMAIL } from './config.js?v=80';
+import { BRAND_RULES, BRAND_RULES_VERSION, detectBrand } from './brands.js?v=80';
 
 /* ---------- state ---------- */
 const P = new Map(); let LIST = [];
@@ -1354,12 +1354,12 @@ function setAutoPrint() { S.autoPrint = false; store.set('autoPrint', false); }
 /* ---------- one-time brand clean-up: add Thai/English names and spellings, tag products that had no brand ---------- */
 function brandFromName(name) { const r = detectBrand(name); if (r < 0) return -1; const [th, en] = BRAND_RULES[r]; return BRANDS.findIndex(b => norm(b[0]) === norm(th) || (en && norm(b[1]) === norm(en))); }
 // one-time cost updates from supplier catalogs / invoices (owner's device only; each runs once, recorded in meta/info)
-const COST_FILES = ['costs-pet8.js', 'costs-petmart.js', 'costs-petmart-1011.js', 'costs-medipet.js'];
+const COST_FILES = ['costs-pet8.js', 'costs-petmart.js', 'costs-petmart-1011.js', 'costs-medipet.js', 'costs-cherngao.js'];
 async function applyCostUpdate() {
   if (!S.isOwner) return;
   for (const f of COST_FILES) {
     try {
-      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=79`);
+      const { COSTS, COST_UPDATE_ID, COST_LABEL, SUPPLIER, DATE } = await import(`./${f}?v=80`);
       const info = await DB.getMeta('info'), done = info?.costs || [];
       // the invoice's shop also becomes each product's "รับมาจากร้าน" (same as receiving goods); separate flag so it also runs where the costs already went in
       if (SUPPLIER && !done.includes(COST_UPDATE_ID + ':sup')) {
@@ -1392,7 +1392,7 @@ async function applySeeds() {
   if (!S.isOwner) return;
   if (!BUY.loaded) { setTimeout(applySeeds, 5000); return; }   // wait for the list itself before clearing from it
   try {
-    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=79');
+    const { SEEDS, CLEARS = [], FIXES = [] } = await import('./seeds.js?v=80');
     const info = await DB.getMeta('info'); const done = info?.seeds || []; let n = 0, cleared = 0;
     let fixed = 0;
     for (const fx of FIXES) {
@@ -1536,7 +1536,7 @@ DB.watchAuth(async user => {
 tick(); setInterval(tick, 15000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
 /* tell the user when a newer version has been published, and update with one click */
-const APP_VERSION = '79';
+const APP_VERSION = '80';
 async function checkUpdate() {
   try {
     const v = (await (await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' })).text()).trim();
